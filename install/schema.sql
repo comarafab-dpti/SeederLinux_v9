@@ -95,7 +95,7 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('NTP_SERVER', '{{NTP_SERVER}}', 'Servidor NTP para sincronizacao de horario', 'ip', 'dominio', FALSE, '10.108.64.51', 8),
 ('OU_PADRAO', '{{OU_PADRAO}}', 'Unidade Organizacional padrao no AD', 'string', 'dominio', FALSE, 'OU=Estacoes,DC=comara,DC=intraer', 9),
 ('GRUPO_ADMIN', '{{GRUPO_ADMIN}}', 'Grupo administrador do dominio', 'string', 'dominio', TRUE, 'Domain Admins', 10),
-('AUTH_METHOD', '{{AUTH_METHOD}}', 'Metodo de autenticacao: sssd ou winbind', 'select', 'dominio', FALSE, 'sssd', 11),
+('AUTH_METHOD', '{{AUTH_METHOD}}', 'Metodo de autenticacao: sssd, winbind ou both (SSSD primeiro, fallback Winbind)', 'select', 'dominio', FALSE, 'sssd', 11),
 ('OFFLINE_AUTH_ENABLED', '{{OFFLINE_AUTH_ENABLED}}', 'Habilitar autenticacao offline', 'boolean', 'dominio', FALSE, 'true', 12),
 ('OFFLINE_AUTH_DAYS', '{{OFFLINE_AUTH_DAYS}}', 'Dias para cache de credenciais offline', 'string', 'dominio', FALSE, '30', 13),
 
@@ -158,6 +158,7 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('INSTALL_DESKTOP', '{{INSTALL_DESKTOP}}', 'Instalar ambiente grafico? Se false, usa o ja instalado na estacao', 'boolean', 'ambiente', FALSE, 'false', 92),
 ('DC_IP_LIST', '{{DC_IP_LIST}}', 'Lista de IPs dos Controladores de Dominio (separados por virgula ou espaco)', 'string', 'dominio', FALSE, '10.108.64.51,10.108.64.52', 93),
 ('ADMIN_USERNAME', '{{ADMIN_USERNAME}}', 'Nome do usuario administrador do dominio para ingresso no AD', 'string', 'dominio', FALSE, 'Administrator', 94),
+('ADMIN_PASSWORD_B64', '{{ADMIN_PASSWORD_B64}}', 'Senha do admin do AD em base64 (ofuscacao, NAO e criptografia). Deixe em branco para perguntar na execucao.', 'password', 'dominio', FALSE, '', 95),
 
 -- File Server
 ('SERVIDOR_ARQUIVOS', '{{SERVIDOR_ARQUIVOS}}', 'Servidor de arquivos (SMB/NFS)', 'ip', 'arquivos', FALSE, '10.108.64.20', 100),

@@ -5,6 +5,12 @@
 # ============================================================================
 # Configura o proxy HTTP/HTTPS no nivel do sistema (/etc/environment,
 # /etc/apt/apt.conf.d) e em variaveis de ambiente globais.
+#
+# IMPORTANTE: Este script executa por ULTIMO (ordem 17), apos todos os
+# pacotes terem sido instalados. A partir deste ponto, a internet pode
+# passar a exigir autenticacao via proxy. Por isso o proxy so e configurado
+# apos todas as instalacoes de apt-get concluidas.
+#
 # Os placeholders {{VARIAVEL}} são substituídos automaticamente
 # pelo sistema na geração do bundle.
 # ============================================================================
@@ -12,8 +18,10 @@
 set -e
 
 echo "============================================================"
-echo "05 - Configurar proxy do sistema"
+echo "17 - Configurar proxy do sistema (ULTIMO)"
 echo "============================================================"
+echo ">>> AVISO: Todos os pacotes ja foram instalados."
+echo ">>> A partir de agora, a internet pode exigir autenticacao via proxy."
 
 # ============================================================
 # Variáveis
@@ -111,5 +119,5 @@ EOF
         ;;
 esac
 
-echo ">>> [05] Proxy do sistema configurado!"
+echo ">>> [17] Proxy do sistema configurado!"
 echo "============================================================"

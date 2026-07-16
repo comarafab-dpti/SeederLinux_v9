@@ -506,6 +506,17 @@ function handleUpdateVariables($input) {
     if (!$orgId) jsonError('Organization ID required');
 
     foreach ($variables as $varId => $value) {
+        // Se for ADMIN_PASSWORD_B64, garantir que esta em base64
+        $varName = Database::fetchOne(
+            "SELECT name FROM variable_definitions WHERE id = ?",
+            [$varId]
+        )['name'] ?? '';
+        if ($varName === 'ADMIN_PASSWORD_B64' && !empty($value)) {
+            $decoded = base64_decode($value, true);
+            if ($decoded === false) {
+                $value = base64_encode($value);
+            }
+        }
         Database::execute(
             "UPDATE organization_variables SET value = ?, updated_at = CURRENT_TIMESTAMP
              WHERE organization_id = ? AND variable_id = ?",
@@ -774,12 +785,24 @@ function handleGenerateBundle($input) {
     $bundle .= "fi\n\n";
 
     $skipExportTypes = ['password'];
-    $skipExportNames = ['ADMIN_USERNAME', 'INSTALL_DESKTOP'];
+    $skipExportNames = ['ADMIN_USERNAME', 'INSTALL_DESKTOP', 'ADMIN_PASSWORD_B64'];
     $bundle .= "# === VARIAVEIS ===\n";
     foreach ($vars as $v) {
         if (in_array($v['type'], $skipExportTypes, true)) continue;
         if (in_array($v['name'], $skipExportNames, true)) continue;
         $bundle .= "export {$v['name']}='" . str_replace("'", "'\\''", $v['value'] ?? '') . "'\n";
+    }
+
+    // Exportar ADMIN_PASSWORD_B64 separadamente (se preenchida)
+    foreach ($vars as $v) {
+        if ($v['name'] === 'ADMIN_PASSWORD_B64' && !empty($v['value'])) {
+            $decoded = base64_decode($v['value'], true);
+            if ($decoded !== false) {
+                $bundle .= "export ADMIN_PASSWORD_B64='" . $v['value'] . "'\n";
+            } else {
+                $bundle .= "export ADMIN_PASSWORD_B64='" . base64_encode($v['value']) . "'\n";
+            }
+        }
     }
     $bundle .= "\n";
 

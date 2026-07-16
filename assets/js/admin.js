@@ -55,7 +55,7 @@ const variableOptions = {
     'PROXY_PORTA': ['80', '8080', '3128', '8888'],
     'DESKTOP_ENV': ['', 'cinnamon', 'mate', 'gnome', 'xfce', 'kde', 'lxde'],
     'DISPLAY_MANAGER': ['', 'lightdm', 'gdm3', 'sddm'],
-    'AUTH_METHOD': ['sssd', 'winbind'],
+    'AUTH_METHOD': ['sssd', 'winbind', 'both'],
     'CONKY_PROFILE': ['default', 'minimal', 'full', 'custom'],
     'OFFLINE_AUTH_ENABLED': 'boolean',
     'INVENTORY_ENABLED': 'boolean',
@@ -692,6 +692,12 @@ function renderVarRow(v) {
     }
 
     const input = renderTypedInput(v);
+    const securityAlert = v.name === 'ADMIN_PASSWORD_B64'
+        ? `<div class="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded text-xs text-amber-400">
+            <strong>AVISO DE SEGURANCA:</strong> A senha sera ofuscada com base64 (NAO e criptografia real).
+            Base64 e trivialmente decodificavel. Recomendado: deixe em branco e informe a senha na execucao do script.
+          </div>`
+        : '';
     return `
         <div class="var-row">
             <label class="block text-sm font-medium text-slate-300 mb-1">
@@ -699,6 +705,7 @@ function renderVarRow(v) {
             </label>
             ${input}
             ${v.description ? `<p class="text-slate-500 text-xs mt-1">${Utils.escapeHtml(v.description)}</p>` : ''}
+            ${securityAlert}
         </div>`;
 }
 
