@@ -113,7 +113,7 @@ function applyRolePermissions() {
 // ============ VIEW MANAGEMENT ============
 
 function showView(viewName) {
-    ['view-dashboard', 'view-om-detail', 'view-scripts-core', 'view-users', 'view-stations', 'view-audit'].forEach(id => {
+    ['view-dashboard', 'view-organizations', 'view-om-detail', 'view-scripts-core', 'view-users', 'view-stations', 'view-audit'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
@@ -125,6 +125,7 @@ function showView(viewName) {
 
     const titles = {
         dashboard: ['Dashboard', 'Visao geral do sistema'],
+        organizations: ['Organizacoes', 'Dashboard de Organizacoes Militares'],
         'scripts-core': ['Scripts Core', 'Scripts do sistema'],
         users: ['Usuarios', 'Gerenciamento de usuarios'],
         stations: ['Estacoes', 'Maquinas registradas'],
@@ -141,6 +142,7 @@ function showView(viewName) {
 
     switch (viewName) {
         case 'dashboard': loadDashboard(); break;
+        case 'organizations': loadOrganizationsDashboard(); break;
         case 'users': loadUsers(); break;
         case 'scripts-core': loadAllScripts(); break;
         case 'stations': loadStations(); break;
@@ -225,6 +227,93 @@ async function loadDashboard() {
                 <button onclick="selectOrganization(${o.id})" class="text-sm text-blue-400 hover:text-blue-300">Ver</button>
             </div>
         `).join('');
+    }
+}
+
+// ============ ORGANIZATIONS DASHBOARD ============
+
+async function loadOrganizationsDashboard() {
+    const [orgsRes, dashRes] = await Promise.all([
+        API.get('organizations'),
+        API.get('dashboard')
+    ]);
+
+    if (!orgsRes.success) return;
+    const orgs = orgsRes.data || [];
+
+    const dash = dashRes.success ? dashRes.data : {};
+
+    document.getElementById('orgs-dash-total').textContent = orgs.length;
+    document.getElementById('orgs-dash-stations').textContent = dash.stations_total || orgs.reduce((a, o) => a + (o.station_count || 0), 0);
+    document.getElementById('orgs-dash-online').textContent = dash.stations_online || 0;
+    document.getElementById('orgs-dash-bundles').textContent = dash.bundles_this_month || 0;
+
+    const searchWrapper = document.getElementById('orgs-search-wrapper');
+    if (searchWrapper) searchWrapper.style.display = orgs.length > 3 ? 'block' : 'none';
+
+    const grid = document.getElementById('orgs-cards-grid');
+    if (!grid) return;
+
+    if (orgs.length === 0) {
+        grid.innerHTML = '<p class="text-slate-400 text-center py-8">Nenhuma organizacao cadastrada.</p>';
+        return;
+    }
+
+    grid.innerHTML = orgs.map(org => {
+        const sigla = Utils.escapeHtml(org.acronym || '');
+        const nome = Utils.escapeHtml(org.name || '');
+        const dominio = Utils.escapeHtml(org.domain || '');
+        const scripts = org.script_count || 0;
+        const stations = org.station_count || 0;
+        const bundles = org.bundle_count || 0;
+        const conformity = org.conformity != null ? org.conformity : 0;
+        const confClass = conformity >= 80 ? 'green' : conformity >= 50 ? 'amber' : 'red';
+        const allUpdated = org.all_updated != null ? org.all_updated : (conformity >= 100);
+
+        const logoHtml = org.logo_url
+            ? `<div class="org-logo"><img class="org-logo-img" src="${Utils.escapeHtml(org.logo_url)}" alt="${sigla}" onerror="this.parentElement.innerHTML='<div class=&quot;org-logo-placeholder&quot;>${sigla.substring(0,3)}</div>'"></div>`
+            : `<div class="org-logo-placeholder">${sigla.substring(0, 3).toUpperCase()}</div>`;
+
+        const statusHtml = allUpdated
+            ? '<span class="badge badge-success">✓ Todas atualizadas</span>'
+            : `<span class="badge badge-warning">${conformity}% conformes</span>`;
+
+        return `
+            <div class="card p-4 cursor-pointer hover:border-blue-500 transition-all" onclick="selectOrganization(${org.id})">
+                <div class="flex items-center gap-3 mb-3">
+                    ${logoHtml}
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="font-semibold text-white truncate">${nome}</span>
+                            <span class="badge badge-secondary">${sigla}</span>
+                        </div>
+                        <div class="text-xs text-slate-400 truncate">${dominio}</div>
+                    </div>
+                </div>
+                <div class="flex gap-4 text-xs text-slate-400 mb-2">
+                    <span>${scripts} scripts</span>
+                    <span>${stations} estacoes</span>
+                    <span>${bundles} bundles</span>
+                </div>
+                <div class="conformity-bar">
+                    <div class="conformity-bar-fill ${confClass}" style="width: ${conformity}%"></div>
+                </div>
+                <div class="mt-2">${statusHtml}</div>
+            </div>
+        `;
+    }).join('');
+
+    const searchInput = document.getElementById('orgs-search');
+    if (searchInput && !searchInput.dataset.bound) {
+        searchInput.dataset.bound = '1';
+        searchInput.addEventListener('input', () => {
+            const q = searchInput.value.toLowerCase();
+            grid.querySelectorAll('.card').forEach((card, i) => {
+                const o = orgs[i];
+                const text = `${o.name} ${o.acronym} ${o.domain}`.toLowerCase();
+                card.style.display = text.includes(q) ? '' : 'none';
+            });
+        });
     }
 }
 
@@ -451,20 +540,115 @@ function renderVariables(vars) {
     // Filtrar ocultos
     filtered = filtered.filter(v => !hiddenNames.has(v.name));
 
+    // Categoria Repositorios tem layout especial com cards por distro
+    if (activeCategory === 'repositorios') {
+        el.innerHTML = html + renderRepositoryCards(filtered);
+        return;
+    }
+
+    // Na view "Todas", pular vars de repositorios (tem layout proprio acessivel via aba)
+    const nonRepo = activeCategory === 'Todas' ? filtered.filter(v => (v.category || 'generic') !== 'repositorios') : filtered;
+
     html += '<div class="var-grid">';
     if (activeCategory === 'Todas') {
-        cats.forEach(c => {
-            const catVars = filtered.filter(v => (v.category || 'generic') === c);
+        cats.filter(c => c !== 'repositorios').forEach(c => {
+            const catVars = nonRepo.filter(v => (v.category || 'generic') === c);
             if (!catVars.length) return;
             html += `<h4 class="col-span-2 mt-4 first:mt-0 text-sm font-semibold text-slate-400 uppercase">${categoryLabels[c] || c}</h4>`;
             html += renderVarsWithGroups(catVars);
         });
     } else {
-        html += renderVarsWithGroups(filtered);
+        html += renderVarsWithGroups(nonRepo);
     }
     html += '</div>';
 
     el.innerHTML = html;
+}
+
+// ===== Layout especial: Repositorios por distribuicao =====
+const repoDistros = [
+    { name: 'Debian',   cls: 'debian',   logo: '/assets/images/distros/debian.svg',   enabledVar: 'REPOSITORY_DEBIAN_ENABLED', urlVar: 'REPOSITORY_DEBIAN_URL', placeholder: 'http://mirror.intraer/debian' },
+    { name: 'Ubuntu',   cls: 'ubuntu',   logo: '/assets/images/distros/ubuntu.svg',   enabledVar: 'REPOSITORY_UBUNTU_ENABLED', urlVar: 'REPOSITORY_UBUNTU_URL', placeholder: 'http://mirror.intraer/ubuntu' },
+    { name: 'Linux Mint', cls: 'mint',   logo: '/assets/images/distros/linuxmint.svg', enabledVar: 'REPOSITORY_MINT_ENABLED', urlVar: 'REPOSITORY_MINT_URL', placeholder: 'http://mirror.intraer/mint' },
+    { name: 'Zorin OS', cls: 'zorin',    logo: '/assets/images/distros/zorin.svg',    enabledVar: 'REPOSITORY_ZORIN_ENABLED', urlVar: 'REPOSITORY_ZORIN_URL', placeholder: 'http://mirror.intraer/zorin' }
+];
+
+function renderRepositoryCards(vars) {
+    const varMap = {};
+    vars.forEach(v => { varMap[v.name] = v; });
+
+    const modeVar = varMap['REPOSITORY_MODE'];
+    const fallbackVar = varMap['REPOSITORY_FALLBACK'];
+
+    let html = '<div class="var-grid" style="grid-template-columns: 1fr;">';
+
+    // Bloco superior: Configuracoes globais
+    html += `<div class="col-span-2 mb-2 p-4 bg-slate-800/40 border border-slate-700 rounded-lg">
+        <div class="text-sm font-semibold text-slate-200 mb-3">Configuracoes Globais</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+
+    if (modeVar) {
+        html += `<div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">Modo de Repositorio${modeVar.is_required ? '<span class="text-red-400">*</span>' : ''}</label>
+            ${renderTypedInput(modeVar)}
+            <p class="text-slate-500 text-xs mt-1 font-mono">REPOSITORY_MODE</p>
+        </div>`;
+    }
+
+    if (fallbackVar) {
+        html += `<div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">Fallback (URL)</label>
+            ${renderTypedInput(fallbackVar)}
+            <p class="text-slate-500 text-xs mt-1 font-mono">REPOSITORY_FALLBACK</p>
+        </div>`;
+    }
+
+    html += `</div></div>`;
+
+    // Bloco inferior: Cards por distribuicao (grid 2x2)
+    html += '<div class="col-span-2 mt-2 grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));">';
+
+    repoDistros.forEach(d => {
+        const enVar = varMap[d.enabledVar];
+        const urlVar = varMap[d.urlVar];
+        if (!enVar && !urlVar) return;
+
+        const enabled = enVar && (enVar.current_value === 'true' || enVar.current_value === '1' || enVar.current_value === true);
+
+        html += `<div class="repo-card ${d.cls}">
+            <div class="repo-card-header">
+                <img src="${d.logo}" alt="${d.name}" onerror="this.style.display='none'">
+                <h4>${d.name}</h4>
+            </div>`;
+
+        if (enVar) {
+            html += `<div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-slate-400">Habilitar repositorio</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" data-var="${enVar.name}" ${enabled ? 'checked' : ''} onchange="toggleRepoUrl(this, '${d.urlVar}')">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>`;
+        }
+
+        if (urlVar) {
+            const urlStyle = enabled ? '' : 'style="display:none;"';
+            html += `<div class="repo-url-wrap" ${urlStyle}>
+                <input type="text" class="var-input" data-var="${urlVar.name}" value="${Utils.escapeHtml(urlVar.current_value || '')}" placeholder="${d.placeholder}">
+                <p class="text-slate-500 text-xs mt-1 font-mono">${urlVar.name}</p>
+            </div>`;
+        }
+
+        html += `</div>`;
+    });
+
+    html += '</div></div>';
+    return html;
+}
+
+function toggleRepoUrl(checkbox, urlVarName) {
+    const wrap = checkbox.closest('.repo-card').querySelector('.repo-url-wrap');
+    if (wrap) wrap.style.display = checkbox.checked ? '' : 'none';
 }
 
 // Renderiza vars agrupando as que pertencem ao mesmo bloco visual (ex: sudo_groups)

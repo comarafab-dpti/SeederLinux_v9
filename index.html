@@ -7,10 +7,7 @@
     <meta name="author" content="SeederLinux">
     <title>SeederLinux Lite - Provisionamento Linux Centralizado</title>
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Custom CSS -->
+    <!-- Custom CSS (includes Tailwind-equivalent utility classes) -->
     <link rel="stylesheet" href="assets/css/style.css">
 
     <!-- Google Fonts -->
@@ -18,26 +15,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'Consolas', 'monospace']
-                    },
-                    colors: {
-                        brand: {
-                            primary: '#2563eb',
-                            secondary: '#10b981',
-                            dark: '#0f172a',
-                            darker: '#020617'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+
 </head>
 <body class="bg-slate-900 text-slate-200 font-sans antialiased">
     <!-- Navigation -->
@@ -457,21 +435,11 @@ $ python3 agent.py --org <span class="text-amber-400">COMARA</span>
                     `;
                 }
 
-                // Load public stats (orgs count, scripts count) via dashboard if session exists
-                try {
-                    const statsResp = await fetch('api/?action=dashboard');
-                    const statsData = await statsResp.json();
-                    if (statsData.success) {
-                        document.getElementById('stat-orgs').textContent = statsData.data.organizations || 0;
-                        document.getElementById('stat-scripts').textContent = statsData.data.scripts || 0;
-                    } else {
-                        document.getElementById('stat-orgs').textContent = '-';
-                        document.getElementById('stat-scripts').textContent = '-';
-                    }
-                } catch (e) {
-                    document.getElementById('stat-orgs').textContent = '-';
-                    document.getElementById('stat-scripts').textContent = '-';
-                }
+                // Orgs and Scripts Core require login - show placeholder
+                document.getElementById('stat-orgs').textContent = '-';
+                document.getElementById('stat-orgs').nextElementSibling.textContent = 'Organizacoes (Disponivel apos login)';
+                document.getElementById('stat-scripts').textContent = '-';
+                document.getElementById('stat-scripts').nextElementSibling.textContent = 'Scripts Core (Disponivel apos login)';
             } catch (error) {
                 console.error('Error loading data:', error);
                 document.getElementById('bundles-tbody').innerHTML = `

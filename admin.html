@@ -127,6 +127,36 @@
                     </div>
                 </div>
 
+                <!-- Organizations Dashboard View -->
+                <div id="view-organizations" class="hidden">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon blue"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></div>
+                            <div class="stat-value" id="orgs-dash-total">0</div>
+                            <div class="stat-label">Organizacoes</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon green"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
+                            <div class="stat-value" id="orgs-dash-stations">0</div>
+                            <div class="stat-label">Estacoes Totais</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon cyan"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z"/></svg></div>
+                            <div class="stat-value" id="orgs-dash-online">0</div>
+                            <div class="stat-label">Estacoes Online</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon amber"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg></div>
+                            <div class="stat-value" id="orgs-dash-bundles">0</div>
+                            <div class="stat-label">Bundles/Mes</div>
+                        </div>
+                    </div>
+                    <div id="orgs-search-wrapper" style="display:none;" class="mb-4">
+                        <input type="text" id="orgs-search" placeholder="Buscar organizacao..." class="form-input" style="max-width: 400px;">
+                    </div>
+                    <div class="grid gap-4" id="orgs-cards-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));"></div>
+                </div>
+
                 <!-- OM Detail: Dashboard + Config tabs -->
                 <div id="view-om-detail" class="hidden">
                     <!-- OM Header -->
