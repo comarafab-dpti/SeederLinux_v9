@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SeederLinux Lite - Gerenciamento centralizado de scripts para provisionamento de estações Linux">
+    <meta name="author" content="SeederLinux">
+    <title>SeederLinux Lite - Provisionamento Linux Centralizado</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="assets/css/style.css">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Consolas', 'monospace']
+                    },
+                    colors: {
+                        brand: {
+                            primary: '#2563eb',
+                            secondary: '#10b981',
+                            dark: '#0f172a',
+                            darker: '#020617'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-900 text-slate-200 font-sans antialiased">
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <img src="/assets/images/seederlinux-logo.png" alt="SeederLinux Lite" class="h-10 w-auto" onerror="this.style.display='none'">
+                    <span class="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+                        SeederLinux Lite
+                    </span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <a href="#downloads" class="text-slate-400 hover:text-white transition-colors">Downloads</a>
+                    <a href="#features" class="text-slate-400 hover:text-white transition-colors">Recursos</a>
+                    <a href="#docs" class="text-slate-400 hover:text-white transition-colors">Documentação</a>
+                    <a href="/login.html" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-all transform hover:scale-105">
+                        Login Gerente
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-24 pb-16 px-4 overflow-hidden">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div>
+                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm font-medium mb-6">
+                        <span class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+                        Multi-OM · Offline-First · Open Source
+                    </div>
+                    <h1 class="text-4xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+                        Provisionamento Linux
+                        <span class="bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+                            Centralizado
+                        </span>
+                    </h1>
+                    <p class="text-xl text-slate-400 mb-8 leading-relaxed">
+                        Gerencie e distribua scripts de configuração para múltiplas Organizações Militares.
+                        Substituição dinâmica de variáveis, execução offline e interface web intuitiva.
+                    </p>
+                    <div class="flex flex-wrap gap-4">
+                        <a href="#downloads" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-lg font-semibold text-white transition-all transform hover:scale-105 shadow-lg shadow-blue-500/25">
+                            Baixar Agente
+                        </a>
+                        <a href="/login.html" class="px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-lg font-semibold text-white transition-all border border-slate-700">
+                            Acessar Painel
+                        </a>
+                    </div>
+                </div>
+                <div class="relative">
+                    <div class="terminal shadow-2xl">
+                        <div class="terminal-header">
+                            <div class="terminal-dot bg-red-500"></div>
+                            <div class="terminal-dot bg-yellow-500"></div>
+                            <div class="terminal-dot bg-green-500"></div>
+                            <span class="ml-2 text-slate-500 text-sm">provision.sh</span>
+                        </div>
+                        <pre class="p-4 text-sm text-emerald-400 overflow-x-auto"><code><span class="text-slate-500"># Baixar e executar bundle</span>
+$ python3 agent.py --org <span class="text-amber-400">COMARA</span>
+
+<span class="text-blue-400">INFO:</span> Baixando bundle...
+<span class="text-blue-400">INFO:</span> Organização: COMARA
+<span class="text-blue-400">INFO:</span> Domínio: comara.intraer
+
+<span class="text-slate-500"># ===== SCRIPT 1/4: Configuração de Rede =====</span>
+<span class="text-emerald-400">OK:</span> Proxy HTTP configurado
+<span class="text-emerald-400">OK:</span> DNS configurado
+<span class="text-emerald-400">OK:</span> Página inicial definida
+
+<span class="text-slate-500"># ===== SCRIPT 2/4: Ingresso em Domínio =====</span>
+<span class="text-emerald-400">OK:</span> SSSD instalado
+<span class="text-emerald-400">OK:</span> Estação ingressada no domínio
+<span class="text-emerald-400">OK:</span> Sudoers configurado</code></pre>
+                    </div>
+                    <div class="absolute -top-4 -right-4 px-3 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-400 text-sm font-medium backdrop-blur-sm">
+                        v1.0.0
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Public Stats Section -->
+    <section class="py-16 px-4 border-y border-slate-800">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+                <div class="text-center">
+                    <div class="text-4xl font-bold text-white mb-2" id="stat-orgs">-</div>
+                    <div class="text-slate-400">Organizações</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-bold text-white mb-2" id="stat-bundles">-</div>
+                    <div class="text-slate-400">Bundles Gerados</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-bold text-white mb-2" id="stat-scripts">-</div>
+                    <div class="text-slate-400">Scripts Core</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-bold text-white mb-2" id="stat-updated">-</div>
+                    <div class="text-slate-400">Última Atualização</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="py-20 px-4" id="features">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl lg:text-4xl font-bold text-white mb-4">Recursos Principais</h2>
+                <p class="text-slate-400 text-lg max-w-2xl mx-auto">
+                    Tudo o que você precisa para provisionar estações Linux de forma eficiente e centralizada.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="card-hover p-6 bg-slate-800/50 rounded-2xl border border-slate-700">
+                    <div class="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Multi-Organização</h3>
+                    <p class="text-slate-400">
+                        Gerencie múltiplas OMs com configurações independentes, cada uma com suas variáveis e identidade visual.
+                    </p>
+                </div>
+
+                <div class="card-hover p-6 bg-slate-800/50 rounded-2xl border border-slate-700">
+                    <div class="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Offline-First</h3>
+                    <p class="text-slate-400">
+                        Scripts são gerados como bundles autônomos que podem ser executados mesmo sem conexão de rede ativa.
+                    </p>
+                </div>
+
+                <div class="card-hover p-6 bg-slate-800/50 rounded-2xl border border-slate-700">
+                    <div class="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Variáveis Dinâmicas</h3>
+                    <p class="text-slate-400">
+                        Use placeholders {{VAR}} nos scripts que são automaticamente substituídos por valores reais.
+                    </p>
+                </div>
+
+                <div class="card-hover p-6 bg-slate-800/50 rounded-2xl border border-slate-700">
+                    <div class="w-12 h-12 bg-cyan-500/20 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Inventário OCS</h3>
+                    <p class="text-slate-400">
+                        Integração automática com OCS Inventory para coleta de informações das estações.
+                    </p>
+                </div>
+
+                <div class="card-hover p-6 bg-slate-800/50 rounded-2xl border border-slate-700">
+                    <div class="w-12 h-12 bg-rose-500/20 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Painel Intuitivo</h3>
+                    <p class="text-slate-400">
+                        Interface web moderna e responsiva para gerenciar OMs, variáveis e gerar bundles.
+                    </p>
+                </div>
+
+                <div class="card-hover p-6 bg-slate-800/50 rounded-2xl border border-slate-700">
+                    <div class="w-12 h-12 bg-teal-500/20 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Segurança</h3>
+                    <p class="text-slate-400">
+                        Autenticação por sessão, senhas criptografadas, proteção CSRF e SQL Injection.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Downloads Section -->
+    <section class="py-20 px-4 bg-slate-800/30" id="downloads">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl lg:text-4xl font-bold text-white mb-4">Downloads</h2>
+                <p class="text-slate-400 text-lg max-w-2xl mx-auto">
+                    Baixe o agente Python e execute-o na estação Linux para iniciar o provisionamento.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <!-- Agent Download -->
+                <div class="card-hover p-8 bg-slate-800 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-2xl flex items-center justify-center">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-bold text-white">Agente Python</h3>
+                            <span class="text-slate-400">agent.py</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 mb-6">
+                        Script cliente que baixa e executa o bundle de provisionamento. Configure a sigla da OM e execute.
+                    </p>
+                    <div class="space-y-3">
+                        <a href="api/download.php?file=agent.py" class="block w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium text-center text-white transition-colors">
+                            Baixar agent.py
+                        </a>
+                        <code class="block p-3 bg-slate-900 rounded-lg text-sm text-slate-400 font-mono">
+                            python3 agent.py --org COMARA
+                        </code>
+                    </div>
+                </div>
+
+                <!-- Documentation Download -->
+                <div class="card-hover p-8 bg-slate-800 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-16 h-16 bg-gradient-to-br from-amber-500 to-rose-500 rounded-2xl flex items-center justify-center">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-bold text-white">Documentação</h3>
+                            <span class="text-slate-400">DOCUMENTACAO.md</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 mb-6">
+                        Guia completo de instalação, configuração e uso do SeederLinux Lite.
+                    </p>
+                    <a href="api/download.php?file=DOCUMENTACAO.md" class="block w-full py-3 px-4 bg-slate-700 hover:bg-slate-600 rounded-lg font-medium text-center text-white transition-colors">
+                        Baixar Documentação
+                    </a>
+                </div>
+            </div>
+
+            <!-- Available Bundles Table -->
+            <div class="mt-12 max-w-5xl mx-auto">
+                <h3 class="text-xl font-semibold text-white mb-6 text-center">Bundles Disponíveis</h3>
+                <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-900/50 border-b border-slate-700">
+                                <tr>
+                                    <th class="px-6 py-4 text-sm font-semibold text-slate-300">Arquivo</th>
+                                    <th class="px-6 py-4 text-sm font-semibold text-slate-300">OM</th>
+                                    <th class="px-6 py-4 text-sm font-semibold text-slate-300">Scripts</th>
+                                    <th class="px-6 py-4 text-sm font-semibold text-slate-300">Data</th>
+                                    <th class="px-6 py-4 text-sm font-semibold text-slate-300 text-center">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bundles-tbody">
+                                <tr>
+                                    <td colspan="5" class="px-6 py-8 text-center text-slate-500">
+                                        <div class="inline-flex items-center gap-2">
+                                            <svg class="animate-spin h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Carregando bundles...
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <p class="text-slate-500 text-sm text-center mt-4">
+                    Para gerar novos bundles, acesse o <a href="/login.html" class="text-blue-400 hover:text-blue-300 underline">painel administrativo</a>.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Documentation Section -->
+    <section class="py-20 px-4" id="docs">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl lg:text-4xl font-bold text-white mb-4">Como Usar</h2>
+                <p class="text-slate-400 text-lg max-w-2xl mx-auto">
+                    Três passos simples para provisionar uma estação Linux.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+                        1
+                    </div>
+                    <div class="p-8 pt-12 bg-slate-800 rounded-2xl border border-slate-700">
+                        <h3 class="text-xl font-semibold text-white mb-4">Configure a OM</h3>
+                        <p class="text-slate-400">
+                            No painel administrativo, cadastre a organização e defina os valores das variáveis (IP do DC, proxy, etc).
+                        </p>
+                    </div>
+                </div>
+
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+                        2
+                    </div>
+                    <div class="p-8 pt-12 bg-slate-800 rounded-2xl border border-slate-700">
+                        <h3 class="text-xl font-semibold text-white mb-4">Baixe o Agente</h3>
+                        <p class="text-slate-400">
+                            Transfira o agent.py para a estação Linux e configure a sigla da OM no arquivo.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-12 h-12 bg-amber-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+                        3
+                    </div>
+                    <div class="p-8 pt-12 bg-slate-800 rounded-2xl border border-slate-700">
+                        <h3 class="text-xl font-semibold text-white mb-4">Execute</h3>
+                        <p class="text-slate-400">
+                            Execute <code class="bg-slate-900 px-2 py-1 rounded text-amber-400">python3 agent.py</code> e o provisionamento será feito automaticamente.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-12 px-4 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <img src="/assets/images/seederlinux-logo.png" alt="SeederLinux Lite" class="h-8 w-auto" onerror="this.style.display='none'">
+                    <span class="text-slate-400">SeederLinux Lite v1.0.0</span>
+                </div>
+                <div class="flex items-center gap-6 text-sm">
+                    <a href="/login.html" class="text-slate-400 hover:text-white transition-colors">Acessar Sistema</a>
+                    <a href="#docs" class="text-slate-400 hover:text-white transition-colors">Documentação</a>
+                    <span class="text-slate-500">Gerenciamento Centralizado de Provisionamento Linux</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Load public bundles (no auth required)
+                const resp = await fetch('api/?action=public-bundles');
+                const data = await resp.json();
+
+                const tbody = document.getElementById('bundles-tbody');
+
+                if (data.success && data.data && data.data.length > 0) {
+                    document.getElementById('stat-bundles').textContent = data.data.length;
+
+                    const dates = data.data.map(b => new Date(b.generated_at)).filter(d => !isNaN(d));
+                    if (dates.length > 0) {
+                        const latest = new Date(Math.max(...dates));
+                        document.getElementById('stat-updated').textContent =
+                            latest.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    }
+
+                    tbody.innerHTML = data.data.map(b => {
+                        const date = new Date(b.generated_at);
+                        const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+                            ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        return `
+                            <tr class="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-300 font-mono">${b.filename || '-'}</td>
+                                <td class="px-6 py-4 text-sm">
+                                    <span class="text-blue-400 font-semibold">${b.acronym || '-'}</span>
+                                    <span class="text-slate-500 ml-2">${b.org_name || ''}</span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-slate-400">${b.scripts_count || 0}</td>
+                                <td class="px-6 py-4 text-sm text-slate-400">${dateStr}</td>
+                                <td class="px-6 py-4 text-center">
+                                    <a href="api/?action=bundle-by-id&id=${b.id}"
+                                       class="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium text-white transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                        </svg>
+                                        Baixar
+                                    </a>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    document.getElementById('stat-bundles').textContent = '0';
+                    document.getElementById('stat-updated').textContent = '-';
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-slate-500">
+                                Nenhum bundle disponível ainda. Acesse o
+                                <a href="/login.html" class="text-blue-400 hover:text-blue-300 underline">painel administrativo</a>
+                                para gerar.
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                // Load public stats (orgs count, scripts count) via dashboard if session exists
+                try {
+                    const statsResp = await fetch('api/?action=dashboard');
+                    const statsData = await statsResp.json();
+                    if (statsData.success) {
+                        document.getElementById('stat-orgs').textContent = statsData.data.organizations || 0;
+                        document.getElementById('stat-scripts').textContent = statsData.data.scripts || 0;
+                    } else {
+                        document.getElementById('stat-orgs').textContent = '-';
+                        document.getElementById('stat-scripts').textContent = '-';
+                    }
+                } catch (e) {
+                    document.getElementById('stat-orgs').textContent = '-';
+                    document.getElementById('stat-scripts').textContent = '-';
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('bundles-tbody').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-rose-400">
+                            Erro ao carregar bundles. Verifique a conexão com o servidor.
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

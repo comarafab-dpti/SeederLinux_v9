@@ -1,0 +1,27 @@
+<IfModule mod_ssl.c>
+    <VirtualHost *:443>
+        ServerName seederlinux.comara.intraer
+        DocumentRoot /var/www/seederlinux-lite
+
+        <Directory /var/www/seederlinux-lite>
+            Options -Indexes +FollowSymLinks
+            AllowOverride All
+            Require all granted
+            php_flag display_errors on
+            php_flag display_startup_errors on
+            php_value error_reporting E_ALL
+        </Directory>
+
+        SSLEngine on
+        SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem
+        SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+
+        ErrorLog ${APACHE_LOG_DIR}/seederlinux-error.log
+        CustomLog ${APACHE_LOG_DIR}/seederlinux-access.log combined
+    </VirtualHost>
+</IfModule>
+
+<VirtualHost *:80>
+    ServerName seederlinux.comara.intraer
+    Redirect permanent / https://seederlinux.comara.intraer/
+</VirtualHost>

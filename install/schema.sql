@@ -1,0 +1,321 @@
+-- ============================================================================
+-- SeederLinux Lite - Canonical Database Schema (PostgreSQL 16+)
+-- ============================================================================
+-- This is the ONE schema file. It is idempotent: safe to re-run.
+-- All table names and columns match what the PHP application (api/index.php) expects.
+-- Core script content is loaded separately by insert_core_scripts.sql.
+-- ============================================================================
+
+-- ============================================================================
+-- Table 1: organizations (created first — users references it)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS organizations (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    acronym VARCHAR(20) UNIQUE NOT NULL,
+    domain VARCHAR(100),
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    serial_config INTEGER DEFAULT 1,
+    logo_url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Seed: default organization
+INSERT INTO organizations (id, name, acronym, domain, description)
+VALUES (1, 'Comando da Comara', 'COMARA', 'comara.intraer', 'Organizacao padrão do sistema')
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================================
+-- Table 2: users
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(200),
+    email VARCHAR(200),
+    role VARCHAR(50) NOT NULL DEFAULT 'operador_om',
+    organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Seed: admin user (password: admin123, bcrypt cost=12)
+INSERT INTO users (username, password_hash, full_name, email, role, organization_id)
+VALUES ('admin', '$2y$12$aclfbpmKYX0DoMcu8EmQeO1xyziOBv9/WjuWR6y3/ovgF74QTaLhC', 'Administrator', 'admin@seeder.local', 'admin_gap', NULL)
+ON CONFLICT (username) DO NOTHING;
+
+-- ============================================================================
+-- Table 3: user_tokens
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS user_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_tokens_user ON user_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_tokens_expires ON user_tokens(expires_at);
+
+-- ============================================================================
+-- Table 4: variable_definitions
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS variable_definitions (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) UNIQUE NOT NULL,
+    placeholder VARCHAR(150) UNIQUE,
+    description TEXT,
+    type VARCHAR(50) DEFAULT 'string',
+    category VARCHAR(100),
+    is_required BOOLEAN DEFAULT false,
+    default_value TEXT,
+    display_order INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_var_defs_category ON variable_definitions(category);
+CREATE INDEX IF NOT EXISTS idx_var_defs_type ON variable_definitions(type);
+
+-- ============================================================================
+-- Variable catalog (56 definitions)
+-- ============================================================================
+INSERT INTO variable_definitions (name, placeholder, description, type, category, is_required, default_value, display_order) VALUES
+-- Domain Configuration
+('DOMINIO', '{{DOMINIO}}', 'Dominio AD completo', 'domain', 'dominio', TRUE, 'comara.intraer', 1),
+('DOMINIO_NETBIOS', '{{DOMINIO_NETBIOS}}', 'Nome NetBIOS do dominio', 'netbios', 'dominio', TRUE, 'COMARA', 2),
+('DC_IP', '{{DC_IP}}', 'IP do Controlador de Dominio', 'ip', 'dominio', TRUE, '10.108.64.51', 3),
+('DC_SECUNDARIO_IP', '{{DC_SECUNDARIO_IP}}', 'IP do Controlador de Dominio secundario', 'ip', 'dominio', FALSE, '', 4),
+('DNS_INTERNET', '{{DNS_INTERNET}}', 'DNS para internet (fallback)', 'ip', 'rede', TRUE, '10.108.64.27', 5),
+('DNS_PRIMARIO', '{{DNS_PRIMARIO}}', 'DNS primario para resolucao de nomes', 'ip', 'rede', TRUE, '10.108.64.51', 6),
+('DNS_SECUNDARIO', '{{DNS_SECUNDARIO}}', 'DNS secundario (fallback)', 'ip', 'rede', FALSE, '10.108.64.27', 7),
+('NTP_SERVER', '{{NTP_SERVER}}', 'Servidor NTP para sincronizacao de horario', 'ip', 'dominio', FALSE, '10.108.64.51', 8),
+('OU_PADRAO', '{{OU_PADRAO}}', 'Unidade Organizacional padrao no AD', 'string', 'dominio', FALSE, 'OU=Estacoes,DC=comara,DC=intraer', 9),
+('GRUPO_ADMIN', '{{GRUPO_ADMIN}}', 'Grupo administrador do dominio', 'string', 'dominio', TRUE, 'Domain Admins', 10),
+('AUTH_METHOD', '{{AUTH_METHOD}}', 'Metodo de autenticacao: sssd ou winbind', 'select', 'dominio', FALSE, 'sssd', 11),
+('OFFLINE_AUTH_ENABLED', '{{OFFLINE_AUTH_ENABLED}}', 'Habilitar autenticacao offline', 'boolean', 'dominio', FALSE, 'true', 12),
+('OFFLINE_AUTH_DAYS', '{{OFFLINE_AUTH_DAYS}}', 'Dias para cache de credenciais offline', 'string', 'dominio', FALSE, '30', 13),
+
+-- Repository
+('BASE_URL', '{{BASE_URL}}', 'URL base do repositorio de scripts', 'url', 'rede', TRUE, 'https://softwarelivre.comara.intraer', 20),
+('REPOSITORY_MODE', '{{REPOSITORY_MODE}}', 'Modo de repositorio: PUBLIC, MIRROR, HYBRID, CUSTOM', 'select', 'repositorios', TRUE, 'MIRROR', 21),
+('REPOSITORY_URL', '{{REPOSITORY_URL}}', 'URL do repositorio espelho', 'url', 'repositorios', FALSE, 'https://softwarelivre.comara.intraer', 22),
+('REPOSITORY_FALLBACK', '{{REPOSITORY_FALLBACK}}', 'URL de repositorio fallback (internet)', 'url', 'repositorios', FALSE, 'http://deb.debian.org/debian', 23),
+('REPOSITORY_DEBIAN_ENABLED', '{{REPOSITORY_DEBIAN_ENABLED}}', 'Habilitar mirror para Debian?', 'boolean', 'repositorios', FALSE, 'false', 24),
+('REPOSITORY_DEBIAN_URL', '{{REPOSITORY_DEBIAN_URL}}', 'URL do mirror Debian (ex: http://mirror.intraer/debian)', 'url', 'repositorios', FALSE, '', 25),
+('REPOSITORY_UBUNTU_ENABLED', '{{REPOSITORY_UBUNTU_ENABLED}}', 'Habilitar mirror para Ubuntu?', 'boolean', 'repositorios', FALSE, 'false', 26),
+('REPOSITORY_UBUNTU_URL', '{{REPOSITORY_UBUNTU_URL}}', 'URL do mirror Ubuntu (ex: http://mirror.intraer/ubuntu)', 'url', 'repositorios', FALSE, '', 27),
+('REPOSITORY_MINT_ENABLED', '{{REPOSITORY_MINT_ENABLED}}', 'Habilitar mirror para Linux Mint?', 'boolean', 'repositorios', FALSE, 'false', 28),
+('REPOSITORY_MINT_URL', '{{REPOSITORY_MINT_URL}}', 'URL do mirror Linux Mint (ex: http://mirror.intraer/mint)', 'url', 'repositorios', FALSE, '', 29),
+('REPOSITORY_ZORIN_ENABLED', '{{REPOSITORY_ZORIN_ENABLED}}', 'Habilitar mirror para Zorin OS?', 'boolean', 'repositorios', FALSE, 'false', 30),
+('REPOSITORY_ZORIN_URL', '{{REPOSITORY_ZORIN_URL}}', 'URL do mirror Zorin OS (ex: http://mirror.intraer/zorin)', 'url', 'repositorios', FALSE, '', 31),
+
+-- Inventory
+('OCS_SERVER', '{{OCS_SERVER}}', 'Servidor OCS Inventory', 'url', 'inventario', TRUE, 'http://ocs.comara.intraer/ocsinventory', 30),
+('OCS_TAG', '{{OCS_TAG}}', 'Tag OCS da organizacao', 'string', 'inventario', TRUE, 'COMARA-ESTACOES', 31),
+('GLPI_SERVER', '{{GLPI_SERVER}}', 'Servidor GLPI para inventario', 'url', 'inventario', FALSE, '', 32),
+('INVENTORY_ENABLED', '{{INVENTORY_ENABLED}}', 'Habilitar inventario automatico', 'boolean', 'inventario', FALSE, 'true', 33),
+
+-- Printers
+('PRINT_SERVER', '{{PRINT_SERVER}}', 'Servidor de impressao', 'ip', 'rede', FALSE, '10.108.64.20', 40),
+('DEFAULT_PRINTER', '{{DEFAULT_PRINTER}}', 'Impressora padrao', 'string', 'impressoras', FALSE, '', 41),
+('PRINTERS', '{{PRINTERS}}', 'Lista de impressoras (adicione uma por vez)', 'tags', 'impressoras', FALSE, '', 42),
+
+-- Proxy
+('PROXY_HTTP', '{{PROXY_HTTP}}', 'Proxy HTTP corporativo', 'ip', 'proxy', FALSE, '10.108.88.4', 50),
+('PROXY_PORTA', '{{PROXY_PORTA}}', 'Porta do proxy', 'port', 'proxy', FALSE, '8080', 51),
+('PROXY_URL', '{{PROXY_URL}}', 'URL completa do proxy', 'url', 'proxy', FALSE, 'http://proxy.comara.intraer:8080', 52),
+('PROXY_MODE', '{{PROXY_MODE}}', 'Modo de proxy: NONE, MANUAL, PAC', 'select', 'navegador', FALSE, 'MANUAL', 53),
+('PAC_URL', '{{PAC_URL}}', 'URL do arquivo PAC (Proxy Auto-Config)', 'url', 'navegador', FALSE, '', 54),
+('NO_PROXY', '{{NO_PROXY}}', 'Lista de excecoes de proxy (adicione uma por vez)', 'tags', 'navegador', FALSE, 'localhost,127.0.0.1,comara.intraer', 55),
+
+-- Browser
+('HOMEPAGE', '{{HOMEPAGE}}', 'Pagina inicial do portal', 'url', 'navegador', FALSE, 'www.comara.intraer', 60),
+
+-- Security
+('GRUPO_ADMIN_AD', '{{GRUPO_ADMIN_AD}}', 'Grupo admin no AD para sudo', 'string', 'seguranca', TRUE, 'Dominio\ Admins', 70),
+('GRUPO_ADMIN_LINUX', '{{GRUPO_ADMIN_LINUX}}', 'Grupo local para sudo', 'string', 'seguranca', TRUE, 'linux-admins', 71),
+('GRUPO_DASTI', '{{GRUPO_DASTI}}', 'Grupo DASTI para sudo', 'string', 'seguranca', FALSE, '_DASTI', 72),
+
+-- Branding / Identidade Visual (Assets)
+('OM_ACRONYM', '{{OM_ACRONYM}}', 'Sigla da Organizacao Militar', 'string', 'branding', FALSE, 'COMARA', 80),
+('OM_NAME', '{{OM_NAME}}', 'Nome completo da Organizacao Militar', 'string', 'branding', FALSE, '', 81),
+('DISPLAY_NAME', '{{DISPLAY_NAME}}', 'Nome de exibicao da OM', 'string', 'branding', FALSE, 'Comando da Comara', 82),
+('WALLPAPER_URL', '{{WALLPAPER_URL}}', 'URL do wallpaper da area de trabalho', 'image', 'assets', FALSE, '/assets/wallpapers/default.jpg', 83),
+('WALLPAPER_LOGIN_URL', '{{WALLPAPER_LOGIN_URL}}', 'URL do wallpaper da tela de login', 'image', 'assets', FALSE, '', 84),
+('LOGO_URL', '{{LOGO_URL}}', 'URL do logo da OM', 'image', 'assets', FALSE, '/assets/logos/default.png', 85),
+('GREETER_URL', '{{GREETER_URL}}', 'URL do greeter personalizado (tela de boas-vindas)', 'image', 'assets', FALSE, '', 86),
+('THEME', '{{THEME}}', 'Tema GTK a ser aplicado', 'string', 'branding', FALSE, 'Adwaita', 87),
+('CONKY_PROFILE', '{{CONKY_PROFILE}}', 'Perfil base do Conky (default, minimal, full, custom)', 'select', 'monitoramento', FALSE, 'default', 88),
+('CONKY_CONFIG', '{{CONKY_CONFIG}}', 'Configuracao avancada do Conky (JSON com cores, posicao, modulos exibidos)', 'json_conky', 'monitoramento', FALSE, '{"position":"top_right","transparent":true,"color_text":"#FFFFFF","color_bg":"#000000","font_size":10,"gap_x":10,"gap_y":40,"show_cpu":true,"show_ram":true,"show_disk":true,"disk_partition":"/","show_network":true,"network_interface":"eth0","show_top_processes":true,"show_datetime":true,"update_interval":1.0}', 89),
+
+-- Desktop Environment
+('DESKTOP_ENV', '{{DESKTOP_ENV}}', 'Ambiente grafico: cinnamon, mate, gnome, xfce, kde, lxde (opcional, apenas se INSTALL_DESKTOP=true)', 'select', 'ambiente', FALSE, '', 90),
+('DISPLAY_MANAGER', '{{DISPLAY_MANAGER}}', 'Gerenciador de sessao: lightdm, gdm3, sddm (opcional, detectado automaticamente se vazio)', 'select', 'ambiente', FALSE, '', 91),
+('INSTALL_DESKTOP', '{{INSTALL_DESKTOP}}', 'Instalar ambiente grafico? Se false, usa o ja instalado na estacao', 'boolean', 'ambiente', FALSE, 'false', 92),
+('DC_IP_LIST', '{{DC_IP_LIST}}', 'Lista de IPs dos Controladores de Dominio (separados por virgula ou espaco)', 'string', 'dominio', FALSE, '10.108.64.51,10.108.64.52', 93),
+('ADMIN_USERNAME', '{{ADMIN_USERNAME}}', 'Nome do usuario administrador do dominio para ingresso no AD', 'string', 'dominio', FALSE, 'Administrator', 94),
+
+-- File Server
+('SERVIDOR_ARQUIVOS', '{{SERVIDOR_ARQUIVOS}}', 'Servidor de arquivos (SMB/NFS)', 'ip', 'arquivos', FALSE, '10.108.64.20', 100),
+('COMPARTILHAMENTOS', '{{COMPARTILHAMENTOS}}', 'Lista de compartilhamentos (adicione um por vez)', 'tags', 'arquivos', FALSE, 'publico,usuarios,setores', 101),
+('MOUNT_BASE', '{{MOUNT_BASE}}', 'Base de montagem para compartilhamentos', 'string', 'arquivos', FALSE, '/mnt/servidor', 102),
+
+-- Applications
+('INSTALL_APPS', '{{INSTALL_APPS}}', 'Instalar OnlyOffice, Google Chrome e Firefox ESR?', 'boolean', 'aplicacoes', FALSE, 'true', 110),
+('INSTALL_LEGADOS', '{{INSTALL_LEGADOS}}', 'Instalar Java 8 e Firefox 52.7 ESR para sistemas legados?', 'boolean', 'aplicacoes', FALSE, 'false', 111),
+
+-- Remote Access
+('REMOTE_METHOD', '{{REMOTE_METHOD}}', 'Metodo de acesso remoto (ssh, xrdp, anydesk)', 'select', 'acesso_remoto', FALSE, 'ssh', 120),
+('REMOTE_SERVER', '{{REMOTE_SERVER}}', 'Servidor de acesso remoto', 'string', 'acesso_remoto', FALSE, '', 121),
+('VNC_ENABLED', '{{VNC_ENABLED}}', 'Habilitar servidor VNC (x11vnc)?', 'boolean', 'acesso_remoto', FALSE, 'false', 122),
+('VNC_PASSWORD', '{{VNC_PASSWORD}}', 'Senha do servidor VNC (em branco = aleatoria)', 'password', 'acesso_remoto', FALSE, '', 123),
+
+-- Certificates
+('CERTIFICATE_BUNDLE', '{{CERTIFICATE_BUNDLE}}', 'URL do bundle de certificados CA', 'url', 'certificados', FALSE, '', 130),
+('CERTIFICATE_AUTO_INSTALL', '{{CERTIFICATE_AUTO_INSTALL}}', 'Instalar certificados automaticamente', 'boolean', 'certificados', FALSE, 'true', 131),
+
+-- SeederLinux Server
+('SEEDER_SERVER', '{{SEEDER_SERVER}}', 'URL base do servidor SeederLinux para check-in do agente', 'url', 'rede', FALSE, '', 140)
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================================
+-- Table 5: organization_variables
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS organization_variables (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    variable_id INTEGER NOT NULL REFERENCES variable_definitions(id) ON DELETE CASCADE,
+    value TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(organization_id, variable_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_vars_org ON organization_variables(organization_id);
+CREATE INDEX IF NOT EXISTS idx_org_vars_var ON organization_variables(variable_id);
+
+-- Seed: default values for COMARA (org id=1) for all variables
+INSERT INTO organization_variables (organization_id, variable_id, value)
+SELECT 1, id, COALESCE(default_value, '') FROM variable_definitions
+ON CONFLICT (organization_id, variable_id) DO NOTHING;
+
+-- Seed explicito: garantir presenca de DC_IP_LIST, ADMIN_USERNAME, INSTALL_DESKTOP
+-- para o org 1, mesmo em bases pre-existentes onde estas variaveis foram
+-- adicionadas ao catalogo apos a criacao da organizacao.
+INSERT INTO organization_variables (organization_id, variable_id, value)
+SELECT 1, id, '10.108.64.51,10.108.64.52' FROM variable_definitions WHERE name = 'DC_IP_LIST'
+ON CONFLICT (organization_id, variable_id) DO NOTHING;
+
+INSERT INTO organization_variables (organization_id, variable_id, value)
+SELECT 1, id, 'Administrator' FROM variable_definitions WHERE name = 'ADMIN_USERNAME'
+ON CONFLICT (organization_id, variable_id) DO NOTHING;
+
+INSERT INTO organization_variables (organization_id, variable_id, value)
+SELECT 1, id, 'false' FROM variable_definitions WHERE name = 'INSTALL_DESKTOP'
+ON CONFLICT (organization_id, variable_id) DO NOTHING;
+
+INSERT INTO organization_variables (organization_id, variable_id, value)
+SELECT 1, id, 'https://seederlinux.comara.intraer' FROM variable_definitions WHERE name = 'SEEDER_SERVER'
+ON CONFLICT (organization_id, variable_id) DO NOTHING;
+
+-- ============================================================================
+-- Table 6: scripts
+-- ============================================================================
+-- Core script content is loaded by insert_core_scripts.sql (run after schema).
+CREATE TABLE IF NOT EXISTS scripts (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    filename VARCHAR(200),
+    description TEXT,
+    content TEXT NOT NULL,
+    is_core BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    execution_order INTEGER DEFAULT 0,
+    version INTEGER DEFAULT 1,
+    organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_scripts_filename ON scripts(filename);
+CREATE INDEX IF NOT EXISTS idx_scripts_core ON scripts(is_core, execution_order);
+
+-- ============================================================================
+-- Table 7: deploy_bundles
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS deploy_bundles (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    filename VARCHAR(255),
+    content TEXT NOT NULL,
+    script_ids TEXT,
+    scripts_count INTEGER DEFAULT 0,
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_deploy_bundles_org ON deploy_bundles(organization_id);
+CREATE INDEX IF NOT EXISTS idx_deploy_bundles_date ON deploy_bundles(generated_at DESC);
+
+-- ============================================================================
+-- Table 8: stations
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS stations (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+    hostname VARCHAR(200),
+    ip_address VARCHAR(50),
+    mac_address VARCHAR(50),
+    os_name VARCHAR(100),
+    os_version VARCHAR(50),
+    last_checkin TIMESTAMP,
+    status VARCHAR(50) DEFAULT 'never_connected',
+    configuration_serial INTEGER DEFAULT 0,
+    token TEXT UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_stations_org ON stations(organization_id);
+CREATE INDEX IF NOT EXISTS idx_stations_token ON stations(token);
+CREATE INDEX IF NOT EXISTS idx_stations_checkin ON stations(last_checkin DESC);
+
+-- ============================================================================
+-- Table 9: audit_events
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS audit_events (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    entity VARCHAR(50) NOT NULL,
+    entity_id INTEGER,
+    action VARCHAR(50) NOT NULL,
+    details JSONB DEFAULT '{}',
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_events_org ON audit_events(organization_id);
+CREATE INDEX IF NOT EXISTS idx_audit_events_user ON audit_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_events_entity ON audit_events(entity, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_events_date ON audit_events(created_at DESC);
+
+-- ============================================================================
+-- Permissions
+-- ============================================================================
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO seeder;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO seeder;
+
+-- ============================================================================
+-- VERIFICACAO DE INTEGRIDADE
+-- Execute estas queries para verificar se o schema esta correto
+-- ============================================================================
+-- SELECT COUNT(*) AS total_tabelas FROM information_schema.tables WHERE table_schema = 'public';
+-- SELECT COUNT(*) AS total_usuarios FROM users;
+-- SELECT COUNT(*) AS total_variaveis FROM variable_definitions;
+-- SELECT COUNT(*) AS total_scripts FROM scripts;
+-- Valores esperados: 9 tabelas, 1 usuario, 56 variaveis, 0 scripts
+-- ============================================================================

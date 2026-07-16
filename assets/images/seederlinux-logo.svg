@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#10b981"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="50" fill="#0f172a" rx="8"/>
+  <text x="100" y="32" font-family="Arial,sans-serif" font-size="20" font-weight="bold" text-anchor="middle" fill="url(#g)">SeederLinux</text>
+</svg>

@@ -1,0 +1,50 @@
+# Resumo dos Problemas Encontrados no SeederLinux Lite
+
+ 1. Estrutura de Diretórios Duplicada
+- Problema: O sistema tinha duas estruturas: `/var/www/seederlinux-lite/` e `/var/www/seederlinux-lite/public/` com arquivos duplicados
+- Consequência: O Apache não sabia qual DocumentRoot usar, causando confusão nos caminhos dos arquivos
+
+ 2. Arquivo functions.php Corrompido
+- Problema: O arquivo tinha múltiplos erros de sintaxe:
+  - `Unmatched '}'` - chave fechando sem abrir (linha 528)
+  - `Unclosed '{'` - chave abrindo sem fechar (linha 491)
+  - Bloco de código `break;` e `switch` soltos, fora de contexto
+  - Função `verifyPassword()` faltando ou com erro
+  - Estrutura duplicada com `validateVariableValue()` aparecendo duas vezes
+
+ 3. Erros de Depreciação PHP
+- Problema: Parâmetros marcados como nullable implicitamente sem o `?` explícito
+- Arquivos afetados: `functions.php` (logActivity, logUserAction) e `auth.php` (session_set_cookie_params)
+- Consequência: Warnings que atrapalhavam a execução
+
+ 4. Sessão PHP Não Iniciando
+- Problema: `session_start()` sendo chamado após headers já enviados
+- Causa: `session_set_cookie_params()` executado depois que conteúdo já foi enviado
+- Consequência: Sessão não iniciava corretamente
+
+ 5. Problemas com .htaccess e Redirecionamento
+- Problema: `.htaccess` estava redirecionando HTTP → HTTPS (301 Moved Permanently)
+- Consequência: Curl e navegador redirecionavam para HTTPS, mas o PHP não processava as requisições
+
+ 6. Hash da Senha do Admin Incorreto
+- Problema: O hash da senha `admin123` no banco de dados era inválido
+- Causa: Hash antigo não correspondia ao algoritmo `PASSWORD_BCRYPT` com `cost=12`
+- Consequência: `password_verify()` retornava `false`, login falhava
+
+ 7. API Retornando "Invalid endpoint"
+- Problema: O `action` não estava sendo capturado corretamente pelo router
+- Causa: O `$_GET['action']` não recebia o parâmetro corretamente
+- Consequência: A API sempre caía no `default` do `switch`, retornando erro
+
+ 8. Missing verifyPassword Function
+- Problema: `verifyPassword()` não existia ou estava com erro no `functions.php`
+- Consequência: `Fatal Error: Call to undefined function verifyPassword()` no `auth.php:53`
+
+ 9. Warnings de Depreciação em logActivity
+- Problema: Parâmetros com valores `null` sem o operador `?` no tipo
+- Exemplo: `string $target = null` deveria ser `?string $target = null`
+
+ 10. Erro na Função session_set_cookie_params
+- Problema: Chamada ocorrendo após headers enviados
+- Causa: O PHP já havia enviado conteúdo antes de configurar a sessão
+

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeederLinux Lite - Debug</title>
+    <style>
+        body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+        pre { background: #0f0f23; padding: 15px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+        h2 { color: #00d4ff; margin-top: 30px; }
+        .ok { color: #00ff88; }
+        .fail { color: #ff4444; }
+        button { background: #0066cc; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0052a3; }
+    </style>
+</head>
+<body>
+    <h1>SeederLinux Lite - Debug Tool</h1>
+    <p>Use this page to diagnose session and API issues. Open the browser console (F12) for more logs.</p>
+
+    <div>
+        <button onclick="testSession()">Test Session (GET)</button>
+        <button onclick="testLogin()">Test Login (POST)</button>
+        <button onclick="testSessionAfterLogin()">Test Session After Login</button>
+        <button onclick="testLogout()">Test Logout</button>
+        <button onclick="runAll()">Run All Tests</button>
+    </div>
+
+    <h2>Results</h2>
+    <pre id="output">Click a button to start...</pre>
+
+    <script>
+        const output = document.getElementById('output');
+        let log = '';
+
+        function addLog(text) {
+            log += text + '\n';
+            output.textContent = log;
+        }
+
+        function clearLog() {
+            log = '';
+            output.textContent = log;
+        }
+
+        async function apiCall(action, method = 'GET', data = null) {
+            const url = `/api/?action=${encodeURIComponent(action)}`;
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin'
+            };
+            if (data && method !== 'GET') {
+                options.body = JSON.stringify(data);
+            }
+            const response = await fetch(url, options);
+            const status = response.status;
+            const statusText = response.statusText;
+            let body;
+            try {
+                body = await response.json();
+            } catch (e) {
+                body = await response.text();
+            }
+            return { status, statusText, body, ok: response.ok };
+        }
+
+        async function testSession() {
+            addLog('\n=== Session Check (GET /api/?action=session) ===');
+            try {
+                const result = await apiCall('session');
+                addLog(`Status: ${result.status} ${result.statusText}`);
+                addLog(`Response: ${JSON.stringify(result.body, null, 2)}`);
+                if (result.body.success) {
+                    addLog('Result: <span class="ok">Session is ACTIVE</span>');
+                } else {
+                    addLog('Result: <span class="fail">Session is NOT active</span>');
+                }
+            } catch (e) {
+                addLog(`Error: ${e.message}`);
+            }
+        }
+
+        async function testLogin() {
+            addLog('\n=== Login (POST /api/?action=login) ===');
+            try {
+                const result = await apiCall('login', 'POST', {
+                    username: 'admin',
+                    password: 'admin123'
+                });
+                addLog(`Status: ${result.status} ${result.statusText}`);
+                addLog(`Response: ${JSON.stringify(result.body, null, 2)}`);
+                if (result.body.success) {
+                    addLog('Result: <span class="ok">Login SUCCESS</span>');
+                } else {
+                    addLog('Result: <span class="fail">Login FAILED</span>');
+                }
+            } catch (e) {
+                addLog(`Error: ${e.message}`);
+            }
+        }
+
+        async function testSessionAfterLogin() {
+            addLog('\n=== Full Flow: Login → Session Check ===');
+            await testLogin();
+            addLog('\n--- Waiting 500ms then checking session... ---');
+            await new Promise(r => setTimeout(r, 500));
+            await testSession();
+        }
+
+        async function testLogout() {
+            addLog('\n=== Logout (POST /api/?action=logout) ===');
+            try {
+                const result = await apiCall('logout', 'POST');
+                addLog(`Status: ${result.status} ${result.statusText}`);
+                addLog(`Response: ${JSON.stringify(result.body, null, 2)}`);
+            } catch (e) {
+                addLog(`Error: ${e.message}`);
+            }
+        }
+
+        async function runAll() {
+            clearLog();
+            addLog('=== Running All Tests ===');
+            await testSession();
+            await testLogin();
+            await testSession();
+            await testLogout();
+            await testSession();
+            addLog('\n=== All Tests Complete ===');
+            addLog('Check the browser console (F12) for additional debug logs.');
+        }
+
+        // Check if API object is available
+        addLog('Debug tool loaded. API object: ' + (typeof API !== 'undefined' ? 'available' : 'NOT available'));
+        addLog('Current URL: ' + window.location.href);
+        addLog('Document cookie: ' + document.cookie);
+    </script>
+</body>
+</html>
