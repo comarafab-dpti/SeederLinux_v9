@@ -271,7 +271,7 @@ async function loadOrganizationsDashboard() {
         const allUpdated = org.all_updated != null ? org.all_updated : (conformity >= 100);
 
         const logoHtml = org.logo_url
-            ? `<div class="org-logo"><img class="org-logo-img" src="${Utils.escapeHtml(org.logo_url)}" alt="${sigla}" onerror="this.parentElement.innerHTML='<div class=&quot;org-logo-placeholder&quot;>${sigla.substring(0,3)}</div>'"></div>`
+            ? `<div class="org-logo"><img class="org-logo-img" src="${Utils.escapeHtml(org.logo_url)}" alt="${sigla}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"></div><div class="org-logo-placeholder" style="display:none">${sigla.substring(0, 3).toUpperCase()}</div>`
             : `<div class="org-logo-placeholder">${sigla.substring(0, 3).toUpperCase()}</div>`;
 
         const statusHtml = allUpdated
@@ -1243,7 +1243,7 @@ async function editScript(id) {
 window.editScript = editScript;
 
 async function deleteScript(id) {
-    if (!confirm('Tem certeza que deseja excluir este script?')) return;
+    if (!confirm('Tem certeza que deseja excluir? Esta acao nao pode ser desfeita.')) return;
     const res = await API.delete('script', id);
     if (res.success) {
         Toast.success('Script excluido');
@@ -1390,7 +1390,7 @@ function editUser(id) {
 window.editUser = editUser;
 
 async function deleteUser(id) {
-    if (!confirm('Tem certeza que deseja excluir este usuario?')) return;
+    if (!confirm('Tem certeza que deseja excluir? Esta acao nao pode ser desfeita.')) return;
     const res = await API.delete('user', id);
     if (res.success) { Toast.success('Usuario excluido'); loadUsers(); }
     else Toast.error(res.error || 'Erro ao excluir');
@@ -1502,7 +1502,7 @@ async function updateOrganization(e) {
 window.updateOrganization = updateOrganization;
 
 async function deleteOrganization(id) {
-    if (!confirm('Tem certeza que deseja excluir esta organizacao?')) return;
+    if (!confirm('Tem certeza que deseja excluir? Esta acao nao pode ser desfeita.')) return;
     const res = await API.delete('organization', id);
     if (res.success) {
         Toast.success('Organizacao excluida');

@@ -493,8 +493,8 @@ td {
 }
 
 .gallery-thumb img {
-    width: 100%;
-    height: 100%;
+    max-width: 100px;
+    max-height: 70px;
     object-fit: cover;
 }
 
@@ -1169,12 +1169,7 @@ td {
 /* ============================================================
    Gallery image sizing
    ============================================================ */
-.gallery-thumb img,
-.image-gallery img {
-    max-width: 100px;
-    max-height: 70px;
-    object-fit: cover;
-}
+/* Gallery sizing handled in .gallery-thumb img above */
 
 /* ============================================================
    Tailwind utility classes used in index.html (no CDN)
