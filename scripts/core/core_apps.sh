@@ -18,20 +18,24 @@ echo "============================================================"
 # ============================================================
 # Variáveis
 # ============================================================
-INSTALL_APPS="{{INSTALL_APPS}}"
+INSTALL_ONLYOFFICE="{{INSTALL_ONLYOFFICE}}"
+INSTALL_CHROME="{{INSTALL_CHROME}}"
+INSTALL_CHROMIUM="{{INSTALL_CHROMIUM}}"
 BASE_URL="{{BASE_URL}}"
 PROXY_MODE="{{PROXY_MODE}}"
 PROXY_HTTP="{{PROXY_HTTP}}"
 PROXY_PORTA="{{PROXY_PORTA}}"
 
-echo ">>> Instalar apps: $INSTALL_APPS"
+echo ">>> Instalar OnlyOffice: $INSTALL_ONLYOFFICE"
+echo ">>> Instalar Chrome: $INSTALL_CHROME"
+echo ">>> Instalar Chromium: $INSTALL_CHROMIUM"
 
 # ============================================================
-# Verificar se a instalacao esta habilitada
+# Verificar se pelo menos um toggle esta ativo
 # ============================================================
-if [ "$INSTALL_APPS" != "true" ]; then
+if [ "$INSTALL_ONLYOFFICE" != "true" ] && [ "$INSTALL_CHROME" != "true" ] && [ "$INSTALL_CHROMIUM" != "true" ]; then
     echo ">>> Instalacao de apps desativada. Pulando."
-    echo ">>> [11] Aplicativos nao instalados (desativado)."
+    echo ">>> [10] Aplicativos nao instalados (desativado)."
     echo "============================================================"
     exit 0
 fi
@@ -47,28 +51,45 @@ fi
 # ============================================================
 # Google Chrome (instalado via .deb/wget, nao via apt-get)
 # ============================================================
-echo ">>> Instalando Google Chrome..."
-CHROME_DEB="/tmp/google-chrome-stable.deb"
+if [ "$INSTALL_CHROME" = "true" ]; then
+    echo ">>> Instalando Google Chrome..."
+    CHROME_DEB="/tmp/google-chrome-stable.deb"
 
-# Baixar Chrome
-if wget -q -O "$CHROME_DEB" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"; then
-    apt-get install -y "$CHROME_DEB" || {
-        echo ">>> AVISO: Falha ao instalar Google Chrome. Tentando dependencias..."
-        apt-get install -y -f
+    # Baixar Chrome
+    if wget -q -O "$CHROME_DEB" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"; then
         apt-get install -y "$CHROME_DEB" || {
-            echo ">>> AVISO: Google Chrome nao instalado."
+            echo ">>> AVISO: Falha ao instalar Google Chrome. Tentando dependencias..."
+            apt-get install -y -f
+            apt-get install -y "$CHROME_DEB" || {
+                echo ">>> AVISO: Google Chrome nao instalado."
+            }
         }
-    }
-    rm -f "$CHROME_DEB"
+        rm -f "$CHROME_DEB"
+    else
+        echo ">>> AVISO: Nao foi possivel baixar Google Chrome."
+        echo ">>> Verifique conectividade e configuracao de proxy."
+    fi
 else
-    echo ">>> AVISO: Nao foi possivel baixar Google Chrome."
-    echo ">>> Verifique conectividade e configuracao de proxy."
+    echo ">>> Google Chrome desativado (INSTALL_CHROME=false). Pulando."
+fi
+
+# ============================================================
+# Chromium (via apt-get)
+# ============================================================
+if [ "$INSTALL_CHROMIUM" = "true" ]; then
+    echo ">>> Instalando Chromium..."
+    apt-get install -y chromium 2>/dev/null || apt-get install -y chromium-browser 2>/dev/null || {
+        echo ">>> AVISO: Nao foi possivel instalar Chromium."
+    }
+else
+    echo ">>> Chromium desativado (INSTALL_CHROMIUM=false). Pulando."
 fi
 
 # ============================================================
 # OnlyOffice Desktop Editors
 # ============================================================
-echo ">>> Instalando OnlyOffice Desktop Editors..."
+if [ "$INSTALL_ONLYOFFICE" = "true" ]; then
+    echo ">>> Instalando OnlyOffice Desktop Editors..."
 
 # Metodo 1: Via repositorio APT oficial
 ONLYOFFICE_KEY="/tmp/onlyoffice-key.asc"
@@ -105,8 +126,11 @@ else
     echo ">>> Tentando instalar via repositorio Debian..."
 
     apt-get install -y onlyoffice-desktopeditors 2>/dev/null || {
-        echo ">>> AVISO: OnlyOffice nao disponivel. Instalacao ignorada."
-    }
+            echo ">>> AVISO: OnlyOffice nao disponivel. Instalacao ignorada."
+        }
+    fi
+else
+    echo ">>> OnlyOffice desativado (INSTALL_ONLYOFFICE=false). Pulando."
 fi
 
 # ============================================================

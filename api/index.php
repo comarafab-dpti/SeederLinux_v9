@@ -777,6 +777,17 @@ function handleGenerateBundle($input) {
     $skipExportNames = ['ADMIN_USERNAME', 'INSTALL_DESKTOP'];
     $imageVars = ['WALLPAPER_URL', 'LOGO_URL', 'WALLPAPER_LOGIN_URL', 'GREETER_URL'];
     $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '');
+    // If accessed via IP, use SEEDER_SERVER FQDN instead
+    $seederServerRow = Database::fetchOne(
+        "SELECT ov.value FROM organization_variables ov
+         JOIN variable_definitions vd ON vd.id = ov.variable_id
+         WHERE ov.organization_id = ? AND vd.name = 'SEEDER_SERVER'",
+        [$orgId]
+    );
+    $seederServer = $seederServerRow['value'] ?? '';
+    if ($seederServer && preg_match('/^\d+\.\d+\.\d+\.\d+/', $baseUrl)) {
+        $baseUrl = rtrim($seederServer, '/');
+    }
     $bundle .= "# === VARIAVEIS ===\n";
     foreach ($vars as $v) {
         if (in_array($v['type'], $skipExportTypes, true)) continue;

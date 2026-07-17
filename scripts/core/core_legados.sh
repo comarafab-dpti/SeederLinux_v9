@@ -27,9 +27,11 @@ BASE_URL="{{BASE_URL}}"
 PROXY_MODE="{{PROXY_MODE}}"
 PROXY_HTTP="{{PROXY_HTTP}}"
 PROXY_PORTA="{{PROXY_PORTA}}"
+JAVA_EXCEPTIONS="{{JAVA_EXCEPTIONS}}"
 
 echo ">>> Instalar Java 8: $INSTALL_JAVA8"
 echo ">>> Instalar Firefox 52.7: $INSTALL_FIREFOX52"
+echo ">>> Excecoes Java: ${JAVA_EXCEPTIONS:-nenhuma}"
 
 # ============================================================
 # Verificar se pelo menos um toggle esta ativo
@@ -75,6 +77,109 @@ if [ "$INSTALL_JAVA8" = "true" ]; then
         else
             echo ">>> AVISO: Nao foi possivel obter chave do repositorio Java 8."
         fi
+    fi
+
+    # Configurar excecoes Java (deployment.properties) se fornecidas
+    if [ -n "$JAVA_EXCEPTIONS" ] && [ "$JAVA_EXCEPTIONS" != "" ]; then
+        echo ">>> Configurando excecoes Java..."
+        DEPLOY_DIR="/usr/lib/jvm/.deployment"
+        mkdir -p "$DEPLOY_DIR"
+        DEPLOY_FILE="$DEPLOY_DIR/deployment.properties"
+        echo "# Excecoes Java - SeederLinux" > "$DEPLOY_FILE"
+        echo "deployment.security.level=MEDIUM" >> "$DEPLOY_FILE"
+        # Processar cada URL (uma por linha ou separada por virgula)
+        IFS=
+else
+    echo ">>> Java 8 desativado (INSTALL_JAVA8=false). Pulando."
+fi
+
+# ============================================================
+# Firefox 52.7 ESR (para applets Java) - apenas se INSTALL_FIREFOX52=true
+# ============================================================
+if [ "$INSTALL_FIREFOX52" = "true" ]; then
+    echo ">>> Instalando Firefox 52.7 ESR..."
+
+    FF_LEGADO_DIR="/opt/firefox-legado"
+    FF_LEGADO_TARBALL="/tmp/firefox-52.7-esr.tar.bz2"
+    FF_LEGADO_URL="${BASE_URL}/downloads/firefox-52.7.3esr.tar.bz2"
+
+    mkdir -p /opt
+
+    # Tentar baixar do repositorio interno
+    if wget -q -O "$FF_LEGADO_TARBALL" "$FF_LEGADO_URL" 2>/dev/null; then
+        echo ">>> Firefox 52.7 baixado do repositorio interno"
+        tar xjf "$FF_LEGADO_TARBALL" -C /opt/
+        mv /opt/firefox "$FF_LEGADO_DIR" 2>/dev/null || true
+        rm -f "$FF_LEGADO_TARBALL"
+    else
+        echo ">>> AVISO: Nao foi possivel baixar Firefox 52.7 do repositorio interno."
+        echo ">>> Tentando download da Mozilla..."
+
+        FF_MOZILLA_URL="https://ftp.mozilla.org/pub/firefox/releases/52.7.3esr/linux-x86_64/en-US/firefox-52.7.3esr.tar.bz2"
+        if wget -q -O "$FF_LEGADO_TARBALL" "$FF_MOZILLA_URL" 2>/dev/null; then
+            tar xjf "$FF_LEGADO_TARBALL" -C /opt/
+            mv /opt/firefox "$FF_LEGADO_DIR" 2>/dev/null || true
+            rm -f "$FF_LEGADO_TARBALL"
+        else
+            echo ">>> AVISO: Nao foi possivel baixar Firefox 52.7."
+        fi
+    fi
+
+    # Criar link simbolico
+    if [ -d "$FF_LEGADO_DIR" ]; then
+        ln -sf "${FF_LEGADO_DIR}/firefox" /usr/local/bin/firefox-legado
+        echo ">>> Firefox 52.7 ESR instalado em: $FF_LEGADO_DIR"
+
+        # Criar entrada de desktop
+        mkdir -p /usr/share/applications
+        cat > /usr/share/applications/firefox-legado.desktop <<EOF
+[Desktop Entry]
+Version=1.0
+Name=Firefox 52.7 ESR (Legado)
+Comment=Navegador Firefox 52.7 ESR para sistemas legados
+Exec=${FF_LEGADO_DIR}/firefox
+Icon=${FF_LEGADO_DIR}/browser/icons/mozicon128.png
+Terminal=false
+Type=Application
+Categories=Network;WebBrowser;
+EOF
+        echo ">>> Entrada de desktop criada"
+    else
+        echo ">>> AVISO: Firefox 52.7 ESR nao instalado."
+    fi
+
+    # Configurar plugin Java para Firefox legado
+    echo ">>> Configurando plugin Java para Firefox legado..."
+    if [ -d "$FF_LEGADO_DIR" ] && command -v java &> /dev/null; then
+        JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+        PLUGIN_DIR="${FF_LEGADO_DIR}/browser/plugins"
+        mkdir -p "$PLUGIN_DIR"
+
+        # Localizar libnpjp2.so
+        find "$JAVA_HOME" -name "libnpjp2.so" -exec ln -sf {} "$PLUGIN_DIR/libnpjp2.so" \; 2>/dev/null || {
+            echo ">>> AVISO: Plugin Java (libnpjp2.so) nao encontrado."
+        }
+        echo ">>> Plugin Java configurado"
+    fi
+else
+    echo ">>> Firefox 52.7 desativado (INSTALL_FIREFOX52=false). Pulando."
+fi
+
+echo ">>> [11] Sistemas legados configurados!"
+echo "============================================================"
+\n,' read -ra EXC_URLS <<< "$JAVA_EXCEPTIONS"
+        IDX=0
+        for EXC_URL in "${EXC_URLS[@]}"; do
+            EXC_URL=$(echo "$EXC_URL" | xargs)
+            if [ -n "$EXC_URL" ] && [ "$EXC_URL" != "" ]; then
+                echo "deployment.security.sandbox.awtwarningwindow=false" >> "$DEPLOY_FILE"
+                echo "# Excecao $IDX: $EXC_URL" >> "$DEPLOY_FILE"
+                # Adicionar a lista de excecoes
+                echo "javaws.allow.0=$EXC_URL" >> "$DEPLOY_FILE"
+                IDX=$((IDX+1))
+            fi
+        done
+        echo ">>> Excecoes Java configuradas ($IDX URLs)"
     fi
 
     # Verificar Java 8

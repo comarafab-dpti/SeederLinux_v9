@@ -101,7 +101,7 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('ADMIN_PASSWORD_B64', '{{ADMIN_PASSWORD_B64}}', 'Senha do administrador do dominio (codificada em base64)', 'password', 'dominio', FALSE, '', 14),
 
 -- Repository
-('BASE_URL', '{{BASE_URL}}', 'URL base do repositorio de scripts', 'url', 'rede', TRUE, 'https://softwarelivre.comara.intraer', 20),
+('BASE_URL', '{{BASE_URL}}', 'URL base do repositorio de scripts (o proprio servidor SeederLinux)', 'url', 'rede', TRUE, 'https://seederlinux.comara.intraer', 20),
 ('REPOSITORY_MODE', '{{REPOSITORY_MODE}}', 'Modo de repositorio: PUBLIC, MIRROR, HYBRID, CUSTOM', 'select', 'repositorios', TRUE, 'MIRROR', 21),
 ('REPOSITORY_URL', '{{REPOSITORY_URL}}', 'URL do repositorio espelho', 'url', 'repositorios', FALSE, 'https://softwarelivre.comara.intraer', 22),
 ('REPOSITORY_FALLBACK', '{{REPOSITORY_FALLBACK}}', 'URL de repositorio fallback (internet)', 'url', 'repositorios', FALSE, 'http://deb.debian.org/debian', 23),
@@ -166,13 +166,17 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('MOUNT_BASE', '{{MOUNT_BASE}}', 'Base de montagem para compartilhamentos', 'string', 'arquivos', FALSE, '/mnt/servidor', 102),
 
 -- Applications
-('INSTALL_APPS', '{{INSTALL_APPS}}', 'Instalar OnlyOffice, Google Chrome e Firefox ESR?', 'boolean', 'aplicacoes', FALSE, 'true', 110),
-('INSTALL_JAVA8', '{{INSTALL_JAVA8}}', 'Instalar Java 8 para sistemas legados?', 'boolean', 'aplicacoes', FALSE, 'false', 111),
-('INSTALL_FIREFOX52', '{{INSTALL_FIREFOX52}}', 'Instalar Firefox 52.7 ESR para sistemas legados?', 'boolean', 'aplicacoes', FALSE, 'false', 112),
+('INSTALL_ONLYOFFICE', '{{INSTALL_ONLYOFFICE}}', 'Instalar OnlyOffice Desktop Editors?', 'boolean', 'aplicacoes', FALSE, 'true', 110),
+('INSTALL_CHROME', '{{INSTALL_CHROME}}', 'Instalar Google Chrome?', 'boolean', 'aplicacoes', FALSE, 'true', 111),
+('INSTALL_CHROMIUM', '{{INSTALL_CHROMIUM}}', 'Instalar Chromium?', 'boolean', 'aplicacoes', FALSE, 'false', 112),
+('INSTALL_JAVA8', '{{INSTALL_JAVA8}}', 'Instalar Java 8 para sistemas legados?', 'boolean', 'aplicacoes', FALSE, 'false', 113),
+('INSTALL_FIREFOX52', '{{INSTALL_FIREFOX52}}', 'Instalar Firefox 52.7 ESR para sistemas legados?', 'boolean', 'aplicacoes', FALSE, 'false', 114),
+('JAVA_EXCEPTIONS', '{{JAVA_EXCEPTIONS}}', 'Excecoes de seguranca para Java (URLs autorizadas)', 'array', 'seguranca', FALSE, '', 115),
 
 -- Remote Access
 ('REMOTE_METHOD', '{{REMOTE_METHOD}}', 'Metodo de acesso remoto (ssh, xrdp, anydesk)', 'select', 'acesso_remoto', FALSE, 'ssh', 120),
-('REMOTE_SERVER', '{{REMOTE_SERVER}}', 'Servidor de acesso remoto', 'string', 'acesso_remoto', FALSE, '', 121),
+('SSH_PORT', '{{SSH_PORT}}', 'Porta SSH (padrao: 22)', 'port', 'acesso_remoto', FALSE, '22', 121),
+('SSH_GROUPS', '{{SSH_GROUPS}}', 'Grupos do dominio com acesso SSH (um por linha)', 'array', 'seguranca', FALSE, 'linux-admins', 124),
 ('VNC_ENABLED', '{{VNC_ENABLED}}', 'Habilitar servidor VNC (x11vnc)?', 'boolean', 'acesso_remoto', FALSE, 'false', 122),
 ('VNC_PASSWORD', '{{VNC_PASSWORD}}', 'Senha do servidor VNC (em branco = aleatoria)', 'password', 'acesso_remoto', FALSE, '', 123),
 
@@ -181,7 +185,7 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('CERTIFICATE_AUTO_INSTALL', '{{CERTIFICATE_AUTO_INSTALL}}', 'Instalar certificados automaticamente', 'boolean', 'certificados', FALSE, 'true', 131),
 
 -- SeederLinux Server
-('SEEDER_SERVER', '{{SEEDER_SERVER}}', 'URL base do servidor SeederLinux para check-in do agente', 'url', 'rede', FALSE, '', 140)
+('SEEDER_SERVER', '{{SEEDER_SERVER}}', 'URL base do servidor SeederLinux para check-in do agente. Configure este FQDN no DNS ou adicione ao /etc/hosts das estacoes.', 'url', 'rede', FALSE, 'https://seederlinux.comara.intraer', 140)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================

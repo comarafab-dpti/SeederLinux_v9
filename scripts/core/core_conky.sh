@@ -82,6 +82,7 @@ CFG_SHOW_NETWORK=$(parse_json show_network "true")
 CFG_NETWORK_IFACE=$(parse_json network_interface "eth0")
 CFG_SHOW_TOP=$(parse_json show_top_processes "true")
 CFG_SHOW_DATETIME=$(parse_json show_datetime "true")
+CFG_SHOW_HOSTNAME=$(parse_json show_hostname "true")
 
 COLOR_TEXT_LUA="${CFG_COLOR_TEXT#\#}"
 COLOR_BG_LUA="${CFG_COLOR_BG#\#}"
@@ -105,8 +106,14 @@ mkdir -p /etc/seederlinux/conky
 echo ">>> Gerando configuracao do Conky (CONKY_CONFIG=${CONKY_CONFIG:-vazio})..."
 
 CONKY_TEXT="\${color ${COLOR_TEXT_LUA}}${OM_ACRONYM} - ${OM_NAME}
-\${color ${COLOR_TEXT_LUA}}\${hr}
-\${color ${COLOR_TEXT_LUA}}Host:   \${color grey}\${nodename}
+\${color ${COLOR_TEXT_LUA}}\${hr}"
+
+if [ "$CFG_SHOW_HOSTNAME" = "true" ]; then
+    CONKY_TEXT="${CONKY_TEXT}
+\${color ${COLOR_TEXT_LUA}}Host:   \${color grey}\${nodename}"
+fi
+
+CONKY_TEXT="${CONKY_TEXT}
 \${color ${COLOR_TEXT_LUA}}Uptime: \${color grey}\${uptime}
 \${color ${COLOR_TEXT_LUA}}\${hr}"
 

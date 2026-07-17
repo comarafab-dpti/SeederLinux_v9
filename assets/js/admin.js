@@ -56,11 +56,14 @@ const variableOptions = {
     'DESKTOP_ENV': ['', 'cinnamon', 'mate', 'gnome', 'xfce', 'kde', 'lxde'],
     'DISPLAY_MANAGER': ['', 'lightdm', 'gdm3', 'sddm'],
     'AUTH_METHOD': ['sssd', 'winbind', 'both'],
+    'THEME': ['Adwaita', 'Adwaita-dark', 'Arc', 'Arc-Dark', 'Breeze', 'Breeze-Dark', 'Mint-Y', 'Mint-Y-Dark', 'Numix', 'Pop', 'Yaru', 'Yaru-Dark'],
     'CONKY_PROFILE': ['default', 'minimal', 'full', 'custom'],
     'OFFLINE_AUTH_ENABLED': 'boolean',
     'INVENTORY_ENABLED': 'boolean',
     'CERTIFICATE_AUTO_INSTALL': 'boolean',
-    'INSTALL_APPS': 'boolean',
+    'INSTALL_ONLYOFFICE': 'boolean',
+    'INSTALL_CHROME': 'boolean',
+    'INSTALL_CHROMIUM': 'boolean',
     'INSTALL_JAVA8': 'boolean',
     'INSTALL_FIREFOX52': 'boolean',
     'INSTALL_DESKTOP': 'boolean',
@@ -571,7 +574,8 @@ const repoDistros = [
     { name: 'Debian',   cls: 'debian',   logo: '/assets/images/distros/debian.svg',   enabledVar: 'REPOSITORY_DEBIAN_ENABLED', urlVar: 'REPOSITORY_DEBIAN_URL', placeholder: 'http://mirror.intraer/debian' },
     { name: 'Ubuntu',   cls: 'ubuntu',   logo: '/assets/images/distros/ubuntu.svg',   enabledVar: 'REPOSITORY_UBUNTU_ENABLED', urlVar: 'REPOSITORY_UBUNTU_URL', placeholder: 'http://mirror.intraer/ubuntu' },
     { name: 'Linux Mint', cls: 'mint',   logo: '/assets/images/distros/linuxmint.svg', enabledVar: 'REPOSITORY_MINT_ENABLED', urlVar: 'REPOSITORY_MINT_URL', placeholder: 'http://mirror.intraer/mint' },
-    { name: 'Zorin OS', cls: 'zorin',    logo: '/assets/images/distros/zorin.svg',    enabledVar: 'REPOSITORY_ZORIN_ENABLED', urlVar: 'REPOSITORY_ZORIN_URL', placeholder: 'http://mirror.intraer/zorin' }
+    { name: 'Zorin OS', cls: 'zorin',    logo: '/assets/images/distros/zorin.svg',    enabledVar: 'REPOSITORY_ZORIN_ENABLED', urlVar: 'REPOSITORY_ZORIN_URL', placeholder: 'http://mirror.intraer/zorin' },
+    { name: 'Padrao',   cls: 'default', logo: '/assets/images/distros/default.svg', enabledVar: null, urlVar: null, placeholder: '' }
 ];
 
 function renderRepositoryCards(vars) {
@@ -616,9 +620,11 @@ function renderRepositoryCards(vars) {
 
         const enabled = enVar && (enVar.current_value === 'true' || enVar.current_value === '1' || enVar.current_value === true);
 
+        if (d.enabledVar === null) continue;
+
         html += `<div class="repo-card ${d.cls}">
             <div class="repo-card-header">
-                <img src="${d.logo}" alt="${d.name}" onerror="this.style.display='none'">
+                <img src="${d.logo}" alt="${d.name}" onerror="this.onerror=null;this.src='/assets/images/distros/default.svg'">
                 <h4>${d.name}</h4>
             </div>`;
 
@@ -858,10 +864,18 @@ function renderTypedInput(v) {
         return renderConkyPanel(v, varId, val);
     }
     if (v.type === 'array') {
-        return `<textarea data-var-id="${varId}" rows="2" class="var-textarea" placeholder="Separe multiplos valores por virgula">${Utils.escapeHtml(val)}</textarea>`;
+        let ph = 'Separe multiplos valores por virgula';
+        if (v.name === 'JAVA_EXCEPTIONS') ph = 'Uma URL por linha';
+        if (v.name === 'SSH_GROUPS') ph = 'Um grupo por linha (ex: linux-admins, Domain Admins)';
+        return `<textarea data-var-id="${varId}" rows="2" class="var-textarea" placeholder="${ph}">${Utils.escapeHtml(val)}</textarea>`;
     }
     if (v.type === 'url' || v.name.includes('URL')) {
-        return `<input type="url" data-var-id="${varId}" value="${Utils.escapeHtml(val)}" class="var-input">`;
+        let ph = '';
+        if (v.name === 'BASE_URL') ph = ' placeholder="https://seederlinux.SUA-OM.intraer"';
+        else if (v.name === 'SEEDER_SERVER') ph = ' placeholder="https://seederlinux.SUA-OM.intraer"';
+        let note = '';
+        if (v.name === 'SEEDER_SERVER') note = '<div class="var-hint" style="font-size:0.8em;color:var(--text-muted);margin-top:4px">Configure este FQDN no DNS ou adicione ao /etc/hosts das estacoes.</div>';
+        return `<input type="url" data-var-id="${varId}" value="${Utils.escapeHtml(val)}" class="var-input"${ph}>${note}`;
     }
     if (v.type === 'ip' || v.name.includes('IP') || v.name.includes('DNS')) {
         return `<input type="text" data-var-id="${varId}" value="${Utils.escapeHtml(val)}" class="var-input font-mono">`;
@@ -884,7 +898,7 @@ function renderConkyPanel(v, varId, val) {
         font_size: 10, gap_x: 10, gap_y: 40,
         show_cpu: true, show_ram: true, show_disk: true, disk_partition: '/',
         show_network: true, network_interface: 'eth0', show_top_processes: true,
-        show_datetime: true, update_interval: 1.0
+        show_datetime: true, show_hostname: true, update_interval: 1.0
     }, cfg);
 
     const posOpts = conkyPositions.map(p => `<option value="${p}" ${cfg.position===p?'selected':''}>${p}</option>`).join('');
@@ -916,6 +930,7 @@ function renderConkyPanel(v, varId, val) {
                 <label>Interface de rede<input type="text" class="var-input font-mono" value="${Utils.escapeHtml(cfg.network_interface)}" onchange="updateConkyField(${varId},'network_interface',this.value)"></label>
                 <label class="conky-inline"><input type="checkbox" ${cfg.show_top_processes?'checked':''} onchange="updateConkyField(${varId},'show_top_processes',this.checked)">Top 3 processos</label>
                 <label class="conky-inline"><input type="checkbox" ${cfg.show_datetime?'checked':''} onchange="updateConkyField(${varId},'show_datetime',this.checked)">Data/Hora</label>
+                <label class="conky-inline"><input type="checkbox" ${cfg.show_hostname?'checked':''} onchange="updateConkyField(${varId},'show_hostname',this.checked)">Hostname</label>
             </div>
         </div>
     </div>`;
