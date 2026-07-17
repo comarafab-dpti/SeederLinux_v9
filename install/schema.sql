@@ -95,9 +95,10 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('NTP_SERVER', '{{NTP_SERVER}}', 'Servidor NTP para sincronizacao de horario', 'ip', 'dominio', FALSE, '10.108.64.51', 8),
 ('OU_PADRAO', '{{OU_PADRAO}}', 'Unidade Organizacional padrao no AD', 'string', 'dominio', FALSE, 'OU=Estacoes,DC=comara,DC=intraer', 9),
 ('GRUPO_ADMIN', '{{GRUPO_ADMIN}}', 'Grupo administrador do dominio', 'string', 'dominio', TRUE, 'Domain Admins', 10),
-('AUTH_METHOD', '{{AUTH_METHOD}}', 'Metodo de autenticacao: sssd ou winbind', 'select', 'dominio', FALSE, 'sssd', 11),
+('AUTH_METHOD', '{{AUTH_METHOD}}', 'Metodo de autenticacao: sssd, winbind ou both (SSSD com fallback Winbind)', 'select', 'dominio', FALSE, 'sssd', 11),
 ('OFFLINE_AUTH_ENABLED', '{{OFFLINE_AUTH_ENABLED}}', 'Habilitar autenticacao offline', 'boolean', 'dominio', FALSE, 'true', 12),
 ('OFFLINE_AUTH_DAYS', '{{OFFLINE_AUTH_DAYS}}', 'Dias para cache de credenciais offline', 'string', 'dominio', FALSE, '30', 13),
+('ADMIN_PASSWORD_B64', '{{ADMIN_PASSWORD_B64}}', 'Senha do administrador do dominio (codificada em base64)', 'password', 'dominio', FALSE, '', 14),
 
 -- Repository
 ('BASE_URL', '{{BASE_URL}}', 'URL base do repositorio de scripts', 'url', 'rede', TRUE, 'https://softwarelivre.comara.intraer', 20),
@@ -166,7 +167,8 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 
 -- Applications
 ('INSTALL_APPS', '{{INSTALL_APPS}}', 'Instalar OnlyOffice, Google Chrome e Firefox ESR?', 'boolean', 'aplicacoes', FALSE, 'true', 110),
-('INSTALL_LEGADOS', '{{INSTALL_LEGADOS}}', 'Instalar Java 8 e Firefox 52.7 ESR para sistemas legados?', 'boolean', 'aplicacoes', FALSE, 'false', 111),
+('INSTALL_JAVA8', '{{INSTALL_JAVA8}}', 'Instalar Java 8 para sistemas legados?', 'boolean', 'aplicacoes', FALSE, 'false', 111),
+('INSTALL_FIREFOX52', '{{INSTALL_FIREFOX52}}', 'Instalar Firefox 52.7 ESR para sistemas legados?', 'boolean', 'aplicacoes', FALSE, 'false', 112),
 
 -- Remote Access
 ('REMOTE_METHOD', '{{REMOTE_METHOD}}', 'Metodo de acesso remoto (ssh, xrdp, anydesk)', 'select', 'acesso_remoto', FALSE, 'ssh', 120),

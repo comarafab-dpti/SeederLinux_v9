@@ -211,7 +211,12 @@ EOF
     CUSTOM)
         if [ -z "$REPOSITORY_URL" ] || [ "$REPOSITORY_URL" = "" ]; then
             echo ">>> ERRO: REPOSITORY_URL nao definido para modo CUSTOM"
-            exit 1
+            read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
+            if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
+                echo ">>> Instalacao abortada pelo usuario."
+                exit 1
+            fi
+            echo ">>> Continuando apesar do erro..."
         fi
 
         echo ">>> Configurando repositorio personalizado"
@@ -224,7 +229,12 @@ EOF
 
     *)
         echo ">>> ERRO: Modo de repositorio invalido: $REPOSITORY_MODE"
-        exit 1
+        read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
+        if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
+            echo ">>> Instalacao abortada pelo usuario."
+            exit 1
+        fi
+        echo ">>> Continuando apesar do erro..."
         ;;
 esac
 

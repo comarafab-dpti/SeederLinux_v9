@@ -1,22 +1,22 @@
 #!/bin/bash
 # ============================================================================
 # Core Script: core_inventory.sh
-# SeederLinux Lite - OCS Inventory Agent
+# SeederLinux Lite - OCS Inventory Agent (configuracao apenas)
 # ============================================================================
-# Instala e configura o agente do OCS Inventory para coleta de inventario
-# automatica da estacao.
-# Os placeholders {{VARIAVEL}} são substituídos automaticamente
-# pelo sistema na geração do bundle.
+# Configura o agente do OCS Inventory para coleta de inventario
+# automatica da estacao. A instalacao de pacotes e feita no core_packages.sh.
+# Os placeholders {{VARIAVEL}} sao substituidos automaticamente
+# pelo sistema na geracao do bundle.
 # ============================================================================
 
 set -e
 
 echo "============================================================"
-echo "07 - Configurar OCS Inventory Agent"
+echo "06 - Configurar OCS Inventory Agent"
 echo "============================================================"
 
 # ============================================================
-# Variáveis
+# Variaveis
 # ============================================================
 INVENTORY_ENABLED="{{INVENTORY_ENABLED}}"
 OCS_SERVER="{{OCS_SERVER}}"
@@ -30,14 +30,14 @@ echo ">>> Inventario habilitado: $INVENTORY_ENABLED"
 # ============================================================
 if [ "$INVENTORY_ENABLED" != "true" ]; then
     echo ">>> Inventario desativado. Pulando configuracao."
-    echo ">>> [07] OCS Inventory desativado."
+    echo ">>> [06] OCS Inventory desativado."
     echo "============================================================"
     exit 0
 fi
 
 if [ -z "$OCS_SERVER" ] || [ "$OCS_SERVER" = "" ]; then
     echo ">>> AVISO: OCS_SERVER nao definido. Pulando configuracao."
-    echo ">>> [07] OCS Inventory nao configurado (servidor ausente)."
+    echo ">>> [06] OCS Inventory nao configurado (servidor ausente)."
     echo "============================================================"
     exit 0
 fi
@@ -46,11 +46,14 @@ echo ">>> Servidor OCS: $OCS_SERVER"
 echo ">>> Tag OCS: $OCS_TAG"
 
 # ============================================================
-# Instalar pacotes do OCS Inventory
+# Verificar se o pacote foi instalado (no core_packages.sh)
 # ============================================================
-echo ">>> Instalando agente OCS Inventory..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y ocsinventory-agent dmidecode
+if ! command -v ocsinventory-agent &>/dev/null; then
+    echo ">>> AVISO: ocsinventory-agent nao instalado. Pulando configuracao."
+    echo ">>> [06] OCS Inventory nao configurado (pacote ausente)."
+    echo "============================================================"
+    exit 0
+fi
 
 # ============================================================
 # Configurar agente OCS
@@ -99,11 +102,6 @@ if [ -n "$GLPI_SERVER" ] && [ "$GLPI_SERVER" != "" ]; then
 server = ${GLPI_SERVER}
 tag = ${OCS_TAG}
 EOF
-
-    # Instalar GLPI Agent se disponivel
-    apt-get install -y glpi-agent 2>/dev/null || {
-        echo ">>> GLPI Agent nao disponivel nos repositorios. Pulando."
-    }
 fi
 
 # ============================================================
@@ -114,5 +112,5 @@ ocsinventory-agent --server="$OCS_SERVER" --tag="$OCS_TAG" --lazy 2>/dev/null ||
     echo ">>> AVISO: Falha na coleta inicial. Sera refeito via cron."
 }
 
-echo ">>> [07] OCS Inventory configurado!"
+echo ">>> [06] OCS Inventory configurado!"
 echo "============================================================"

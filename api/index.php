@@ -775,18 +775,39 @@ function handleGenerateBundle($input) {
 
     $skipExportTypes = ['password'];
     $skipExportNames = ['ADMIN_USERNAME', 'INSTALL_DESKTOP'];
+    $imageVars = ['WALLPAPER_URL', 'LOGO_URL', 'WALLPAPER_LOGIN_URL', 'GREETER_URL'];
+    $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '');
     $bundle .= "# === VARIAVEIS ===\n";
     foreach ($vars as $v) {
         if (in_array($v['type'], $skipExportTypes, true)) continue;
         if (in_array($v['name'], $skipExportNames, true)) continue;
-        $bundle .= "export {$v['name']}='" . str_replace("'", "'\\''", $v['value'] ?? '') . "'\n";
+        $varValue = $v['value'] ?? '';
+        if (in_array($v['name'], $imageVars, true) && !empty($varValue) && strpos($varValue, 'http') !== 0) {
+            $varValue = $baseUrl . '/' . ltrim($varValue, '/');
+        }
+        $bundle .= "export {$v['name']}='" . str_replace("'", "'\\''", $varValue) . "'\n";
     }
     $bundle .= "\n";
 
     $bundle .= "# === SCRIPTS ===\n\n";
     $scriptIds = [];
+
+    // Fetch ADMIN_PASSWORD_B64 for base64 encoding in scripts
+    $adminPwdRow = Database::fetchOne(
+        "SELECT ov.value FROM organization_variables ov
+         JOIN variable_definitions vd ON vd.id = ov.variable_id
+         WHERE ov.organization_id = ? AND vd.name = 'ADMIN_PASSWORD_B64'",
+        [$orgId]
+    );
+    $adminPwdEncoded = ($adminPwdRow && !empty($adminPwdRow['value']))
+        ? base64_encode($adminPwdRow['value'])
+        : '';
+
     foreach ($scripts as $s) {
         $scriptContent = substituir_placeholders($s['content'], $orgId);
+        if ($adminPwdEncoded) {
+            $scriptContent = str_replace('__ADMIN_PASSWORD_B64__', $adminPwdEncoded, $scriptContent);
+        }
         $bundle .= "# --- {$s['name']} ({$s['filename']}) ---\n";
         $bundle .= $scriptContent . "\n\n";
         $scriptIds[] = $s['id'];

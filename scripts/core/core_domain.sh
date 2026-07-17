@@ -1,12 +1,19 @@
 #!/bin/bash
 # ============================================================================
 # Core Script: core_domain.sh
-# SeederLinux Lite - Ingresso no AD (SSSD/Winbind)
+# SeederLinux Lite - Ingresso no AD (SSSD/Winbind com fallback)
 # ============================================================================
 # Configura Kerberos, Samba, SSSD, PAM, NSS, sudo e mkhomedir para
 # ingressar a estacao no dominio Active Directory.
-# Os placeholders {{VARIAVEL}} são substituídos automaticamente
-# pelo sistema na geração do bundle.
+#
+# Suporta AUTH_METHOD:
+#   sssd    - Apenas SSSD (realm join)
+#   winbind - Apenas Winbind (net ads join)
+#   both    - SSSD primeiro, fallback para Winbind se falhar
+#
+# Suporta ADMIN_PASSWORD_B64 (senha codificada em base64).
+# Os placeholders {{VARIAVEL}} sao substituidos automaticamente
+# pelo sistema na geracao do bundle.
 # ============================================================================
 
 set -e
@@ -16,7 +23,7 @@ echo "04 - Ingresso no Active Directory"
 echo "============================================================"
 
 # ============================================================
-# Variáveis
+# Variaveis
 # ============================================================
 DOMINIO="{{DOMINIO}}"
 DOMINIO_NETBIOS="{{DOMINIO_NETBIOS}}"
@@ -31,10 +38,22 @@ OFFLINE_AUTH_ENABLED="{{OFFLINE_AUTH_ENABLED}}"
 OFFLINE_AUTH_DAYS="{{OFFLINE_AUTH_DAYS}}"
 ADMIN_USERNAME="{{ADMIN_USERNAME}}"
 AUTH_METHOD="{{AUTH_METHOD}}"
+ADMIN_PASSWORD_B64="__ADMIN_PASSWORD_B64__"
 
 echo ">>> Dominio: $DOMINIO"
-echo ">>> NetBIOS: $DOMINIO_NETBIOS"
+echo ">>> NetBIOS: $DOMINIO_NETBIOS}"
 echo ">>> DC principal: $DC_IP"
+echo ">>> Metodo de autenticacao: $AUTH_METHOD"
+
+# ============================================================
+# Decodificar senha base64 se fornecida
+# ============================================================
+if [ -n "$ADMIN_PASSWORD_B64" ] && [ "$ADMIN_PASSWORD_B64" != "" ] && [ "$ADMIN_PASSWORD_B64" != "__ADMIN_PASSWORD_B64__" ]; then
+    ADMIN_PASSWORD=$(echo "$ADMIN_PASSWORD_B64" | base64 -d 2>/dev/null)
+    if [ -n "$ADMIN_PASSWORD" ]; then
+        echo ">>> Senha do AD decodificada de base64"
+    fi
+fi
 
 # ============================================================
 # Ajustar DNS para ingresso no dominio
@@ -64,7 +83,7 @@ fi
 # ============================================================
 # Definir modo winbind offline logon conforme AUTH_METHOD e OFFLINE_AUTH_ENABLED
 # ============================================================
-if [ "$AUTH_METHOD" = "winbind" ] && [ "$OFFLINE_AUTH_ENABLED" = "true" ]; then
+if { [ "$AUTH_METHOD" = "winbind" ] || [ "$AUTH_METHOD" = "both" ]; } && [ "$OFFLINE_AUTH_ENABLED" = "true" ]; then
     WINBIND_OFFLINE="yes"
 else
     WINBIND_OFFLINE="false"
@@ -129,7 +148,7 @@ EOF
 echo ">>> Samba configurado"
 
 # ============================================================
-# Ingressar no dominio
+# Obter credenciais do administrador do dominio
 # ============================================================
 echo "============================================================"
 echo ">>> INGRESSO NO DOMINIO - CREDENCIAIS NECESSARIAS"
@@ -140,80 +159,143 @@ if [ -z "$ADMIN_USERNAME" ] || [ "$ADMIN_USERNAME" = "Administrator" ]; then
     ADMIN_USERNAME="${ADMIN_USER:-Administrator}"
 fi
 
-read -s -p ">>> Senha do administrador do dominio: " ADMIN_PASSWORD
-echo ""
+# Se a senha nao foi decodificada de base64, pedir interativamente
+if [ -z "$ADMIN_PASSWORD" ] || [ "$ADMIN_PASSWORD" = "" ]; then
+    read -s -p ">>> Senha do administrador do dominio: " ADMIN_PASSWORD
+    echo ""
+fi
+
 echo ">>> Ingressando no dominio..."
 
-# Obter ticket Kerberos - tentar múltiplas combinações
+# ============================================================
+# Obter ticket Kerberos - tentar multiplas combinacoes
+# ============================================================
 echo ">>> Obtendo ticket Kerberos..."
 KINIT_OK=false
 
-# Tentativa 1: REALM maiúsculo (Administrator@COMARA.INTRAER)
+# Tentativa 1: REALM maiusculo (Administrator@COMARA.INTRAER)
 echo "$ADMIN_PASSWORD" | kinit "${ADMIN_USERNAME}@${DOMINIO^^}" 2>/dev/null && KINIT_OK=true
 
 # Tentativa 2: NETBIOS (Administrator@COMARA)
 [ "$KINIT_OK" != "true" ] && echo "$ADMIN_PASSWORD" | kinit "${ADMIN_USERNAME}@${DOMINIO_NETBIOS}" 2>/dev/null && KINIT_OK=true
 
-# Tentativa 3: Domínio minúsculo (administrator@comara.intraer)
+# Tentativa 3: Dominio minusculo (administrator@comara.intraer)
 [ "$KINIT_OK" != "true" ] && echo "$ADMIN_PASSWORD" | kinit "${ADMIN_USERNAME,,}@${DOMINIO,,}" 2>/dev/null && KINIT_OK=true
 
-# Tentativa 4: Usuário minúsculo, REALM maiúsculo (administrator@COMARA.INTRAER)
+# Tentativa 4: Usuario minusculo, REALM maiusculo (administrator@COMARA.INTRAER)
 [ "$KINIT_OK" != "true" ] && echo "$ADMIN_PASSWORD" | kinit "${ADMIN_USERNAME,,}@${DOMINIO^^}" 2>/dev/null && KINIT_OK=true
 
 if [ "$KINIT_OK" != "true" ]; then
-    echo ">>> ERRO: Falha ao obter ticket Kerberos com todas as combinações."
+    echo ">>> ERRO: Falha ao obter ticket Kerberos com todas as combinacoes."
     echo ">>> Verifique usuario/senha e conectividade com o DC."
-    exit 1
-fi
-echo ">>> Ticket Kerberos obtido com sucesso!"
-
-# Ingressar com realm join (método moderno para SSSD)
-echo ">>> Ingressando no dominio via realm join..."
-echo "$ADMIN_PASSWORD" | realm join "$DOMINIO" \
-    --user="$ADMIN_USERNAME" \
-    --computer-ou="$OU_PADRAO" \
-    --verbose || {
-    echo ">>> ERRO: realm join falhou."
-    exit 1
-}
-
-# Verificar se o keytab foi gerado
-if [ ! -f /etc/krb5.keytab ]; then
-    echo ">>> Keytab não encontrado. Tentando gerar com adcli..."
-    echo "$ADMIN_PASSWORD" | adcli join "$DOMINIO" \
-        --login-user="$ADMIN_USERNAME" \
-        --domain-ou="$OU_PADRAO" \
-        --verbose || {
-        echo ">>> ERRO: adcli join também falhou."
+    read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
+    if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
+        echo ">>> Instalacao abortada pelo usuario."
         exit 1
-    }
+    fi
+    echo ">>> Continuando apesar do erro..."
+else
+    echo ">>> Ticket Kerberos obtido com sucesso!"
+fi
+
+# ============================================================
+# Ingressar no dominio - SSSD (realm join) e/ou Winbind (net ads join)
+# ============================================================
+JOIN_OK=false
+JOIN_METHOD=""
+
+# --- Metodo 1: SSSD (realm join) ---
+if [ "$AUTH_METHOD" = "sssd" ] || [ "$AUTH_METHOD" = "both" ]; then
+    echo ">>> Ingressando no dominio via realm join (SSSD)..."
+    if echo "$ADMIN_PASSWORD" | realm join "$DOMINIO" \
+        --user="$ADMIN_USERNAME" \
+        --computer-ou="$OU_PADRAO" \
+        --verbose 2>&1; then
+
+        # Verificar se o keytab foi gerado
+        if [ ! -f /etc/krb5.keytab ]; then
+            echo ">>> Keytab nao encontrado. Tentando gerar com adcli..."
+            echo "$ADMIN_PASSWORD" | adcli join "$DOMINIO" \
+                --login-user="$ADMIN_USERNAME" \
+                --domain-ou="$OU_PADRAO" \
+                --verbose 2>&1 || true
+        fi
+
+        if [ -f /etc/krb5.keytab ]; then
+            JOIN_OK=true
+            JOIN_METHOD="sssd"
+            echo ">>> Ingresso via SSSD (realm join) bem-sucedido!"
+        else
+            echo ">>> AVISO: realm join executado mas keytab nao gerado."
+        fi
+    else
+        echo ">>> AVISO: realm join falhou."
+    fi
+fi
+
+# --- Metodo 2: Winbind (net ads join) - fallback ou metodo principal ---
+if [ "$JOIN_OK" != "true" ]; then
+    if [ "$AUTH_METHOD" = "winbind" ] || [ "$AUTH_METHOD" = "both" ]; then
+        echo ">>> Ingressando no dominio via net ads join (Winbind)..."
+        if echo "$ADMIN_PASSWORD" | net ads join "$DOMINIO" \
+            -U "$ADMIN_USERNAME" \
+            createcomputer="$OU_PADRAO" 2>&1; then
+
+            if [ -f /etc/krb5.keytab ]; then
+                JOIN_OK=true
+                JOIN_METHOD="winbind"
+                echo ">>> Ingresso via Winbind (net ads join) bem-sucedido!"
+            else
+                echo ">>> AVISO: net ads join executado mas keytab nao gerado."
+                # Tentar gerar keytab manualmente
+                net ads keytab create -U "$ADMIN_USERNAME" 2>/dev/null && {
+                    JOIN_OK=true
+                    JOIN_METHOD="winbind"
+                    echo ">>> Keytab gerado manualmente via net ads keytab."
+                } || true
+            fi
+        else
+            echo ">>> AVISO: net ads join falhou."
+        fi
+    fi
+fi
+
+# --- Verificar resultado do ingresso ---
+if [ "$JOIN_OK" = "false" ]; then
+    echo ">>> ERRO: Falha ao ingressar no dominio com todos os metodos."
+    read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
+    if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
+        echo ">>> Instalacao abortada pelo usuario."
+        exit 1
+    fi
+    echo ">>> Continuando apesar do erro..."
 fi
 
 # Verificar keytab
 if [ -f /etc/krb5.keytab ]; then
     echo ">>> Keytab gerado com sucesso."
     chmod 600 /etc/krb5.keytab
-else
-    echo ">>> ERRO: Keytab não foi gerado após múltiplas tentativas."
-    exit 1
 fi
 
+echo ">>> Metodo de ingresso utilizado: ${JOIN_METHOD:-nenhum}"
 unset ADMIN_PASSWORD
+unset ADMIN_PASSWORD_B64
 echo ">>> Ingresso no dominio realizado"
 
 # ============================================================
-# Configurar SSSD
+# Configurar SSSD (se metodo for sssd ou both)
 # ============================================================
-echo ">>> Configurando SSSD..."
-OFFLINE_CACHE=""
-if [ "$OFFLINE_AUTH_ENABLED" = "true" ]; then
-    DAYS="${OFFLINE_AUTH_DAYS:-3}"
-    OFFLINE_CACHE="cache_credentials = true
+if [ "$JOIN_METHOD" = "sssd" ] || [ "$AUTH_METHOD" = "sssd" ]; then
+    echo ">>> Configurando SSSD..."
+    OFFLINE_CACHE=""
+    if [ "$OFFLINE_AUTH_ENABLED" = "true" ]; then
+        DAYS="${OFFLINE_AUTH_DAYS:-3}"
+        OFFLINE_CACHE="cache_credentials = true
     krb5_store_password_if_offline = true
     offline_credentials_expiration = ${DAYS}"
-fi
+    fi
 
-cat > /etc/sssd/sssd.conf <<EOF
+    cat > /etc/sssd/sssd.conf <<EOF
 [sssd]
 services = nss, pam, sudo
 config_file_version = 2
@@ -235,14 +317,31 @@ domains = ${DOMINIO}
     ldap_sudo_search_base = OU=sudoers,${OU_PADRAO}
 EOF
 
-chmod 600 /etc/sssd/sssd.conf
-echo ">>> SSSD configurado"
+    chmod 600 /etc/sssd/sssd.conf
+    echo ">>> SSSD configurado"
+fi
 
 # ============================================================
-# Configurar NSS
+# Configurar NSS (suporta SSSD e Winbind)
 # ============================================================
 echo ">>> Configurando NSS..."
-cat > /etc/nsswitch.conf <<EOF
+if [ "$JOIN_METHOD" = "winbind" ] || [ "$AUTH_METHOD" = "winbind" ]; then
+    cat > /etc/nsswitch.conf <<EOF
+passwd:     files systemd winbind
+shadow:     files winbind
+group:      files systemd winbind
+gshadow:    files
+
+hosts:      files dns
+
+services:   files
+netgroup:   files
+sudoers:    files
+
+automount:  files
+EOF
+else
+    cat > /etc/nsswitch.conf <<EOF
 passwd:     files systemd sss
 shadow:     files sss
 group:      files systemd sss
@@ -256,6 +355,7 @@ sudoers:    files sss
 
 automount:  files sss
 EOF
+fi
 
 echo ">>> NSS configurado"
 
@@ -269,6 +369,11 @@ pam-auth-update --enable mkhomedir --force 2>/dev/null || true
 if [ -f /etc/pam.d/common-session ]; then
     grep -q "pam_mkhomedir" /etc/pam.d/common-session || \
         echo "session required pam_mkhomedir.so skel=/etc/skel umask=0022" >> /etc/pam.d/common-session
+fi
+
+# Configurar Winbind no PAM se necessario
+if [ "$JOIN_METHOD" = "winbind" ] || [ "$AUTH_METHOD" = "winbind" ]; then
+    pam-auth-update --enable winbind 2>/dev/null || true
 fi
 
 echo ">>> PAM configurado"
@@ -291,7 +396,12 @@ fi
 chmod 440 "$SUDO_FILE"
 visudo -cf "$SUDO_FILE" || {
     echo ">>> ERRO: sintaxe do sudoers invalida"
-    exit 1
+    read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
+    if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
+        echo ">>> Instalacao abortada pelo usuario."
+        exit 1
+    fi
+    echo ">>> Continuando apesar do erro..."
 }
 
 echo ">>> Sudo configurado"
@@ -301,8 +411,16 @@ echo ">>> Sudo configurado"
 # ============================================================
 echo ">>> Reiniciando servicos..."
 systemctl restart samba 2>/dev/null || true
-systemctl restart sssd
-systemctl enable sssd
+
+if [ "$JOIN_METHOD" = "sssd" ] || [ "$AUTH_METHOD" = "sssd" ]; then
+    systemctl restart sssd 2>/dev/null || true
+    systemctl enable sssd 2>/dev/null || true
+fi
+
+if [ "$JOIN_METHOD" = "winbind" ] || [ "$AUTH_METHOD" = "winbind" ]; then
+    systemctl restart winbind 2>/dev/null || true
+    systemctl enable winbind 2>/dev/null || true
+fi
 
 echo ">>> [04] Ingresso no AD concluido!"
 echo "============================================================"

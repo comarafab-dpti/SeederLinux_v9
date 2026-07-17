@@ -55,13 +55,14 @@ const variableOptions = {
     'PROXY_PORTA': ['80', '8080', '3128', '8888'],
     'DESKTOP_ENV': ['', 'cinnamon', 'mate', 'gnome', 'xfce', 'kde', 'lxde'],
     'DISPLAY_MANAGER': ['', 'lightdm', 'gdm3', 'sddm'],
-    'AUTH_METHOD': ['sssd', 'winbind'],
+    'AUTH_METHOD': ['sssd', 'winbind', 'both'],
     'CONKY_PROFILE': ['default', 'minimal', 'full', 'custom'],
     'OFFLINE_AUTH_ENABLED': 'boolean',
     'INVENTORY_ENABLED': 'boolean',
     'CERTIFICATE_AUTO_INSTALL': 'boolean',
     'INSTALL_APPS': 'boolean',
-    'INSTALL_LEGADOS': 'boolean',
+    'INSTALL_JAVA8': 'boolean',
+    'INSTALL_FIREFOX52': 'boolean',
     'INSTALL_DESKTOP': 'boolean',
     'VNC_ENABLED': 'boolean'
 };
@@ -866,7 +867,10 @@ function renderTypedInput(v) {
         return `<input type="text" data-var-id="${varId}" value="${Utils.escapeHtml(val)}" class="var-input font-mono">`;
     }
     if (v.type === 'password') {
-        return `<input type="password" data-var-id="${varId}" value="${Utils.escapeHtml(val)}" class="var-input">`;
+        const alertBadge = v.name === 'ADMIN_PASSWORD_B64'
+            ? '<div class="var-security-alert" style="color:var(--error);font-size:0.8em;margin-top:4px">ATENCAO: Esta senha aparece codificada (base64) no bundle. Proteja o arquivo gerado.</div>'
+            : '';
+        return `<input type="password" data-var-id="${varId}" value="${Utils.escapeHtml(val)}" class="var-input">${alertBadge}`;
     }
     return `<input type="text" data-var-id="${varId}" value="${Utils.escapeHtml(val)}" class="var-input">`;
 }

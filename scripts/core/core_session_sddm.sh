@@ -37,9 +37,16 @@ if [ -z "$DISPLAY_MANAGER" ] || [ "$DISPLAY_MANAGER" = "" ]; then
     elif systemctl is-active --quiet sddm 2>/dev/null; then DISPLAY_MANAGER="sddm"
     elif [ -f /etc/X11/default-display-manager ]; then
         DISPLAY_MANAGER="$(basename "$(cat /etc/X11/default-display-manager)")"
-    else DISPLAY_MANAGER="unknown"
+    elif command -v cinnamon-session &>/dev/null || command -v mate-session &>/dev/null || command -v startxfce4 &>/dev/null; then
+        DISPLAY_MANAGER="lightdm"
+    elif command -v gnome-session &>/dev/null; then
+        DISPLAY_MANAGER="gdm3"
+    elif command -v startplasma-x11 &>/dev/null; then
+        DISPLAY_MANAGER="sddm"
+    else
+        DISPLAY_MANAGER="lightdm"
     fi
-    echo ">>> DM detectado automaticamente: $DISPLAY_MANAGER"
+    echo ">>> Display Manager detectado: $DISPLAY_MANAGER"
 fi
 
 # ============================================================

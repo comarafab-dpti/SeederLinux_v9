@@ -1,16 +1,13 @@
 #!/bin/bash
 # ============================================================================
 # Core Script: core_vnc.sh
-# SeederLinux Lite - x11vnc
+# SeederLinux Lite - x11vnc (configuracao apenas)
 # ============================================================================
-# Instala e configura o x11vnc para suporte remoto, incluindo servico
-# systemd e senha de acesso.
+# Configura o x11vnc para suporte remoto, incluindo servico systemd e
+# senha de acesso. A instalacao de pacotes e feita no core_packages.sh.
 #
 # SEGURANCA: A senha VNC e gravada em /etc/seederlinux/secrets.env
-# (perm 600) e usada diretamente com x11vnc -storepasswd. A senha
-# NUNCA aparece em texto plano no bundle, nos logs ou em variaveis
-# exportadas. O placeholder {{VNC_PASSWORD}} e substituido por vazio
-# no bundle - a senha real e passada apenas para o storepasswd.
+# (perm 600) e usada diretamente com x11vnc -storepasswd.
 #
 # Os placeholders {{VARIAVEL}} sao substituidos automaticamente
 # pelo sistema na geracao do bundle.
@@ -19,7 +16,7 @@
 set -e
 
 echo "============================================================"
-echo "09 - Configurar x11vnc"
+echo "08 - Configurar x11vnc"
 echo "============================================================"
 
 # ============================================================
@@ -36,17 +33,32 @@ echo ">>> VNC habilitado: $VNC_ENABLED"
 # ============================================================
 if [ "$VNC_ENABLED" != "true" ]; then
     echo ">>> VNC desativado. Pulando configuracao."
-    echo ">>> [09] x11vnc desativado."
+    echo ">>> [08] x11vnc desativado."
     echo "============================================================"
     exit 0
 fi
 
 # ============================================================
-# Instalar x11vnc
+# Verificar se o x11vnc foi instalado (no core_packages.sh)
 # ============================================================
-echo ">>> Instalando x11vnc..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y x11vnc
+if ! command -v x11vnc &>/dev/null; then
+    echo ">>> AVISO: x11vnc nao instalado. Pulando configuracao."
+    echo ">>> [08] x11vnc nao configurado (pacote ausente)."
+    echo "============================================================"
+    exit 0
+fi
+
+# ============================================================
+# Detectar Display Manager se nao definido
+# ============================================================
+if [ -z "$DISPLAY_MANAGER" ] || [ "$DISPLAY_MANAGER" = "" ]; then
+    if systemctl is-active --quiet lightdm 2>/dev/null; then DISPLAY_MANAGER="lightdm"
+    elif systemctl is-active --quiet gdm3 2>/dev/null; then DISPLAY_MANAGER="gdm3"
+    elif systemctl is-active --quiet sddm 2>/dev/null; then DISPLAY_MANAGER="sddm"
+    else DISPLAY_MANAGER="lightdm"
+    fi
+    echo ">>> Display Manager detectado: $DISPLAY_MANAGER"
+fi
 
 # ============================================================
 # Configurar senha do VNC (SEM expor em texto plano)
@@ -57,17 +69,10 @@ mkdir -p /etc/seederlinux
 
 SECRETS_FILE="/etc/seederlinux/secrets.env"
 
-# Gravar a senha no arquivo de secrets (perm 600)
-# O placeholder {{VNC_PASSWORD}} foi substituido pelo valor real
-# pelo sistema. Se vazio, gerar senha aleatoria.
 if [ -n "$VNC_PASSWORD" ] && [ "$VNC_PASSWORD" != "" ]; then
-    # Usar a senha fornecida na configuracao da OM
     x11vnc -storepasswd "$VNC_PASSWORD" /etc/x11vnc/vncpasswd
     chmod 600 /etc/x11vnc/vncpasswd
     echo ">>> Senha VNC configurada (fornecida pela OM)"
-
-    # Gravar referencia no secrets.env (apenas o fato de que existe,
-    # NAO a senha em texto plano)
     echo "VNC_PASSWORD_SET=true" >> "$SECRETS_FILE"
 else
     echo ">>> VNC_PASSWORD nao definido. Gerando senha aleatoria."
@@ -75,13 +80,10 @@ else
     x11vnc -storepasswd "$RANDOM_PASS" /etc/x11vnc/vncpasswd
     chmod 600 /etc/x11vnc/vncpasswd
     echo ">>> Senha VNC gerada com sucesso"
-
     echo "VNC_PASSWORD_SET=true" >> "$SECRETS_FILE"
 fi
 
 chmod 600 "$SECRETS_FILE" 2>/dev/null || true
-
-# Limpar a variavel de senha da memoria para evitar vazamento
 unset VNC_PASSWORD
 unset RANDOM_PASS
 
@@ -90,7 +92,6 @@ unset RANDOM_PASS
 # ============================================================
 echo ">>> Criando servico systemd x11vnc..."
 
-# Determinar o display e o auth file conforme o display manager
 case "$DISPLAY_MANAGER" in
     lightdm)
         VNC_DISPLAY=":0"
@@ -134,5 +135,5 @@ systemctl start x11vnc.service 2>/dev/null || {
     echo ">>> O servico sera iniciado apos o display manager."
 }
 
-echo ">>> [09] x11vnc configurado!"
+echo ">>> [08] x11vnc configurado!"
 echo "============================================================"

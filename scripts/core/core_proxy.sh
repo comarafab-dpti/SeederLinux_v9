@@ -12,7 +12,11 @@
 set -e
 
 echo "============================================================"
-echo "05 - Configurar proxy do sistema"
+echo "ATENCAO: Proxy sera configurado agora."
+echo "Todos os pacotes ja foram instalados."
+echo "A partir deste ponto, a internet pode exigir autenticacao."
+echo "============================================================"
+echo "17 - Configurar proxy do sistema"
 echo "============================================================"
 
 # ============================================================
@@ -87,7 +91,12 @@ EOF
 
         if [ -z "$PAC_URL" ] || [ "$PAC_URL" = "" ]; then
             echo ">>> ERRO: PAC_URL nao definido para modo PAC"
-            exit 1
+            read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
+            if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
+                echo ">>> Instalacao abortada pelo usuario."
+                exit 1
+            fi
+            echo ">>> Continuando apesar do erro..."
         fi
 
         # Configurar APT com PAC (apt suporta PAC via auto)
@@ -107,9 +116,14 @@ EOF
 
     *)
         echo ">>> ERRO: Modo de proxy invalido: $PROXY_MODE"
-        exit 1
+        read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
+        if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
+            echo ">>> Instalacao abortada pelo usuario."
+            exit 1
+        fi
+        echo ">>> Continuando apesar do erro..."
         ;;
 esac
 
-echo ">>> [05] Proxy do sistema configurado!"
+echo ">>> [17] Proxy do sistema configurado!"
 echo "============================================================"

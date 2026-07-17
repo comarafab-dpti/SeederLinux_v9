@@ -1,22 +1,22 @@
 #!/bin/bash
 # ============================================================================
 # Core Script: core_printers.sh
-# SeederLinux Lite - CUPS e impressoras
+# SeederLinux Lite - CUPS e impressoras (configuracao apenas)
 # ============================================================================
 # Configura o CUPS e instala as impressoras compartilhadas via servidor
-# de impressao.
-# Os placeholders {{VARIAVEL}} são substituídos automaticamente
-# pelo sistema na geração do bundle.
+# de impressao. A instalacao de pacotes e feita no core_packages.sh.
+# Os placeholders {{VARIAVEL}} sao substituidos automaticamente
+# pelo sistema na geracao do bundle.
 # ============================================================================
 
 set -e
 
 echo "============================================================"
-echo "08 - Configurar CUPS e impressoras"
+echo "07 - Configurar CUPS e impressoras"
 echo "============================================================"
 
 # ============================================================
-# Variáveis
+# Variaveis
 # ============================================================
 PRINT_SERVER="{{PRINT_SERVER}}"
 DEFAULT_PRINTER="{{DEFAULT_PRINTER}}"
@@ -31,7 +31,17 @@ echo ">>> Impressora padrao: $DEFAULT_PRINTER"
 # ============================================================
 if [ -z "$PRINT_SERVER" ] || [ "$PRINT_SERVER" = "" ]; then
     echo ">>> AVISO: PRINT_SERVER nao definido. Pulando configuracao."
-    echo ">>> [08] Impressoras nao configuradas (servidor ausente)."
+    echo ">>> [07] Impressoras nao configuradas (servidor ausente)."
+    echo "============================================================"
+    exit 0
+fi
+
+# ============================================================
+# Verificar se o CUPS foi instalado (no core_packages.sh)
+# ============================================================
+if ! command -v cupsctl &>/dev/null; then
+    echo ">>> AVISO: CUPS nao instalado. Pulando configuracao."
+    echo ">>> [07] Impressoras nao configuradas (CUPS ausente)."
     echo "============================================================"
     exit 0
 fi
@@ -40,10 +50,6 @@ fi
 # Configurar CUPS
 # ============================================================
 echo ">>> Configurando CUPS..."
-export DEBIAN_FRONTEND=noninteractive
-
-# Garantir que o CUPS esteja instalado
-apt-get install -y cups cups-client system-config-printer
 
 # Habilitar e iniciar CUPS
 systemctl enable cups
@@ -133,5 +139,5 @@ fi
 # ============================================================
 systemctl restart cups
 
-echo ">>> [08] CUPS e impressoras configurados!"
+echo ">>> [07] CUPS e impressoras configurados!"
 echo "============================================================"

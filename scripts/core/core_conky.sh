@@ -1,22 +1,22 @@
 #!/bin/bash
 # ============================================================================
 # Core Script: core_conky.sh
-# SeederLinux Lite - Conky
+# SeederLinux Lite - Conky (configuracao apenas)
 # ============================================================================
-# Instala e configura o Conky para exibicao de informacoes do sistema
-# no desktop, com perfil personalizavel.
-# Os placeholders {{VARIAVEL}} são substituídos automaticamente
-# pelo sistema na geração do bundle.
+# Configura o Conky para exibicao de informacoes do sistema no desktop,
+# com perfil personalizavel. A instalacao de pacotes e feita no core_packages.sh.
+# Os placeholders {{VARIAVEL}} sao substituidos automaticamente
+# pelo sistema na geracao do bundle.
 # ============================================================================
 
 set -e
 
 echo "============================================================"
-echo "10 - Configurar Conky"
+echo "09 - Configurar Conky"
 echo "============================================================"
 
 # ============================================================
-# Variáveis
+# Variaveis
 # ============================================================
 CONKY_PROFILE="{{CONKY_PROFILE}}"
 CONKY_CONFIG='{{CONKY_CONFIG}}'
@@ -42,11 +42,14 @@ if [ -z "$DESKTOP_ENV" ] || [ "$DESKTOP_ENV" = "" ]; then
 fi
 
 # ============================================================
-# Instalar Conky (+ jq para parse do CONKY_CONFIG JSON)
+# Verificar se o Conky foi instalado (no core_packages.sh)
 # ============================================================
-echo ">>> Instalando Conky e jq..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y conky conky-all jq
+if ! command -v conky &>/dev/null; then
+    echo ">>> AVISO: Conky nao instalado. Pulando configuracao."
+    echo ">>> [09] Conky nao configurado (pacote ausente)."
+    echo "============================================================"
+    exit 0
+fi
 
 # ============================================================
 # Parse do CONKY_CONFIG (JSON) com fallbacks
@@ -55,7 +58,6 @@ parse_json() {
     local key="$1"
     local default="$2"
     local val
-    # Nao usar //  pois false/0 sao "falsy" em jq. Usar if/has para preservar boolean false.
     val=$(echo "$CONKY_CONFIG" | jq -r "if has(\"${key}\") then .${key} else \"__UNSET__\" end" 2>/dev/null)
     if [ -z "$val" ] || [ "$val" = "null" ] || [ "$val" = "__UNSET__" ]; then
         echo "$default"
@@ -81,11 +83,9 @@ CFG_NETWORK_IFACE=$(parse_json network_interface "eth0")
 CFG_SHOW_TOP=$(parse_json show_top_processes "true")
 CFG_SHOW_DATETIME=$(parse_json show_datetime "true")
 
-# Converte hex #RRGGBB -> lua 'RRGGBB' (sem #)
 COLOR_TEXT_LUA="${CFG_COLOR_TEXT#\#}"
 COLOR_BG_LUA="${CFG_COLOR_BG#\#}"
 
-# Transparencia -> own_window_transparent + argb_value
 if [ "$CFG_TRANSPARENT" = "true" ]; then
     OWN_TRANSPARENT="true"
     OWN_ARGB_VALUE="0"
@@ -104,7 +104,6 @@ mkdir -p /etc/seederlinux/conky
 # ============================================================
 echo ">>> Gerando configuracao do Conky (CONKY_CONFIG=${CONKY_CONFIG:-vazio})..."
 
-# Bloco de conky.text dinamico
 CONKY_TEXT="\${color ${COLOR_TEXT_LUA}}${OM_ACRONYM} - ${OM_NAME}
 \${color ${COLOR_TEXT_LUA}}\${hr}
 \${color ${COLOR_TEXT_LUA}}Host:   \${color grey}\${nodename}
@@ -145,7 +144,6 @@ if [ "$CFG_SHOW_DATETIME" = "true" ]; then
 \${color ${COLOR_TEXT_LUA}}\${time %A, %d/%m/%Y %H:%M:%S}"
 fi
 
-mkdir -p /etc/seederlinux/conky
 cat > /etc/seederlinux/conky/conky.conf <<EOF
 -- Configuracao Conky - SeederLinux (gerada dinamicamente)
 -- Perfil: ${CONKY_PROFILE:-default}
@@ -182,19 +180,14 @@ ${CONKY_TEXT}
 ]]
 EOF
 
-
 # ============================================================
 # Criar script de inicializacao do Conky
 # ============================================================
 echo ">>> Criando script de inicializacao..."
 cat > /usr/local/bin/seederlinux-conky <<'SCRIPT'
 #!/bin/bash
-# Inicia o Conky com a configuracao do SeederLinux
 CONKY_CONF="/etc/seederlinux/conky/conky.conf"
-
-# Aguardar o ambiente grafico estar pronto
 sleep 5
-
 if [ -f "$CONKY_CONF" ]; then
     killall conky 2>/dev/null || true
     conky -c "$CONKY_CONF" &
@@ -211,31 +204,7 @@ chmod +x /usr/local/bin/seederlinux-conky
 echo ">>> Configurando autostart do Conky para: $DESKTOP_ENV"
 
 case "$DESKTOP_ENV" in
-    cinnamon)
-        mkdir -p /etc/xdg/autostart
-        cat > /etc/xdg/autostart/seederlinux-conky.desktop <<EOF
-[Desktop Entry]
-Type=Application
-Name=Conky (SeederLinux)
-Exec=/usr/local/bin/seederlinux-conky
-Terminal=false
-X-GNOME-Autostart-enabled=true
-NoDisplay=false
-EOF
-        ;;
-    mate|xfce|lxde)
-        mkdir -p /etc/xdg/autostart
-        cat > /etc/xdg/autostart/seederlinux-conky.desktop <<EOF
-[Desktop Entry]
-Type=Application
-Name=Conky (SeederLinux)
-Exec=/usr/local/bin/seederlinux-conky
-Terminal=false
-X-GNOME-Autostart-enabled=true
-NoDisplay=false
-EOF
-        ;;
-    gnome)
+    cinnamon|mate|xfce|lxde|gnome)
         mkdir -p /etc/xdg/autostart
         cat > /etc/xdg/autostart/seederlinux-conky.desktop <<EOF
 [Desktop Entry]
@@ -260,5 +229,5 @@ EOF
         ;;
 esac
 
-echo ">>> [10] Conky configurado!"
+echo ">>> [09] Conky configurado!"
 echo "============================================================"

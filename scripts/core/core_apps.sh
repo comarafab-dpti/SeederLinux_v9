@@ -12,7 +12,7 @@
 set -e
 
 echo "============================================================"
-echo "11 - Instalar aplicativos (OnlyOffice, Chrome, Firefox ESR)"
+echo "10 - Instalar aplicativos (Chrome, OnlyOffice via .deb/wget)"
 echo "============================================================"
 
 # ============================================================
@@ -45,13 +45,7 @@ if [ "$PROXY_MODE" = "MANUAL" ] && [ -n "$PROXY_HTTP" ] && [ "$PROXY_HTTP" != ""
 fi
 
 # ============================================================
-# Firefox ESR
-# ============================================================
-echo ">>> Instalando Firefox ESR..."
-apt-get install -y firefox-esr firefox-esr-l10n-pt-br
-
-# ============================================================
-# Google Chrome
+# Google Chrome (instalado via .deb/wget, nao via apt-get)
 # ============================================================
 echo ">>> Instalando Google Chrome..."
 CHROME_DEB="/tmp/google-chrome-stable.deb"
@@ -123,5 +117,5 @@ command -v firefox-esr &> /dev/null && echo ">>> Firefox ESR: OK" || echo ">>> F
 command -v google-chrome &> /dev/null && echo ">>> Google Chrome: OK" || echo ">>> Google Chrome: NAO INSTALADO"
 command -v onlyoffice-desktopeditors &> /dev/null && echo ">>> OnlyOffice: OK" || echo ">>> OnlyOffice: NAO INSTALADO"
 
-echo ">>> [11] Aplicativos instalados!"
+echo ">>> [10] Aplicativos instalados!"
 echo "============================================================"

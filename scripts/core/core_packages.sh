@@ -182,7 +182,12 @@ EXTRA_PACKAGES=(
     cups-client
     system-config-printer
     x11vnc
+    conky
     conky-all
+    jq
+    ocsinventory-agent
+    dmidecode
+    openjdk-8-jre
     gimp
     vlc
     evince
