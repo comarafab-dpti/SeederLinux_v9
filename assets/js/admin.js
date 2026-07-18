@@ -275,7 +275,7 @@ async function loadOrganizationsDashboard() {
         const allUpdated = org.all_updated != null ? org.all_updated : (conformity >= 100);
 
         const logoHtml = org.logo_url
-            ? `<div class="org-logo"><img class="org-logo-img" src="${Utils.escapeHtml(org.logo_url)}" alt="${sigla}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"></div><div class="org-logo-placeholder" style="display:none">${sigla.substring(0, 3).toUpperCase()}</div>`
+            ? `<div class="org-logo"><img class="org-logo-img" src="${Utils.escapeHtml(org.logo_url)}" alt="${sigla}" onerror="if(this.style)this.style.display='none';if(this.nextElementSibling&&this.nextElementSibling.style)this.nextElementSibling.style.display='flex'"></div><div class="org-logo-placeholder" style="display:none">${sigla.substring(0, 3).toUpperCase()}</div>`
             : `<div class="org-logo-placeholder">${sigla.substring(0, 3).toUpperCase()}</div>`;
 
         const statusHtml = allUpdated
@@ -413,7 +413,7 @@ async function loadOrganizations() {
                 data-org-id="${o.id}" onclick="selectOrganization(${o.id})">
             <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                 ${o.logo_url
-                    ? `<img src="${Utils.escapeHtml(o.logo_url)}" class="w-full h-full object-cover rounded" onerror="this.parentElement.textContent='${o.acronym.substring(0, 3)}'">`
+                    ? `<img src="${Utils.escapeHtml(o.logo_url)}" class="w-full h-full object-cover rounded" onerror="if(this.parentElement)this.parentElement.textContent='${o.acronym.substring(0, 3)}'">`
                     : o.acronym.substring(0, 3)}
             </div>
             <div class="min-w-0">
@@ -466,7 +466,7 @@ async function selectOrganization(orgId) {
     // Badge
     const badge = document.getElementById('om-badge');
     badge.innerHTML = org.logo_url
-        ? `<img src="${Utils.escapeHtml(org.logo_url)}" class="w-full h-full object-cover rounded-xl" onerror="this.parentElement.textContent='${org.acronym.substring(0, 3)}'">`
+        ? `<img src="${Utils.escapeHtml(org.logo_url)}" class="w-full h-full object-cover rounded-xl" onerror="if(this.parentElement)this.parentElement.textContent='${org.acronym.substring(0, 3)}'">`
         : org.acronym.substring(0, 3);
 
     // Show overview panel by default
@@ -571,11 +571,11 @@ function renderVariables(vars) {
 
 // ===== Layout especial: Repositorios por distribuicao =====
 const repoDistros = [
-    { name: 'Debian',   cls: 'debian',   logo: '/assets/images/distros/debian.png',   logoFallback: '/assets/images/distros/debian.svg',   enabledVar: 'REPOSITORY_DEBIAN_ENABLED', urlVar: 'REPOSITORY_DEBIAN_URL', placeholder: 'http://mirror.intraer/debian' },
-    { name: 'Ubuntu',   cls: 'ubuntu',   logo: '/assets/images/distros/ubuntu.png',   logoFallback: '/assets/images/distros/ubuntu.svg',   enabledVar: 'REPOSITORY_UBUNTU_ENABLED', urlVar: 'REPOSITORY_UBUNTU_URL', placeholder: 'http://mirror.intraer/ubuntu' },
-    { name: 'Linux Mint', cls: 'mint',   logo: '/assets/images/distros/linuxmint.png', logoFallback: '/assets/images/distros/linuxmint.svg', enabledVar: 'REPOSITORY_MINT_ENABLED', urlVar: 'REPOSITORY_MINT_URL', placeholder: 'http://mirror.intraer/mint' },
-    { name: 'Zorin OS', cls: 'zorin',    logo: '/assets/images/distros/zorin.png',    logoFallback: '/assets/images/distros/zorin.svg',    enabledVar: 'REPOSITORY_ZORIN_ENABLED', urlVar: 'REPOSITORY_ZORIN_URL', placeholder: 'http://mirror.intraer/zorin' },
-    { name: 'Padrao',   cls: 'default', logo: '/assets/images/distros/default.svg', logoFallback: '/assets/images/distros/default.svg', enabledVar: null, urlVar: null, placeholder: '' }
+    { name: 'Debian',   cls: 'debian',   logo: '/assets/images/distros/debian.svg',   enabledVar: 'REPOSITORY_DEBIAN_ENABLED', urlVar: 'REPOSITORY_DEBIAN_URL', placeholder: 'http://mirror.intraer/debian' },
+    { name: 'Ubuntu',   cls: 'ubuntu',   logo: '/assets/images/distros/ubuntu.svg',   enabledVar: 'REPOSITORY_UBUNTU_ENABLED', urlVar: 'REPOSITORY_UBUNTU_URL', placeholder: 'http://mirror.intraer/ubuntu' },
+    { name: 'Linux Mint', cls: 'mint',   logo: '/assets/images/distros/linuxmint.svg', enabledVar: 'REPOSITORY_MINT_ENABLED', urlVar: 'REPOSITORY_MINT_URL', placeholder: 'http://mirror.intraer/mint' },
+    { name: 'Zorin OS', cls: 'zorin',    logo: '/assets/images/distros/zorin.svg',    enabledVar: 'REPOSITORY_ZORIN_ENABLED', urlVar: 'REPOSITORY_ZORIN_URL', placeholder: 'http://mirror.intraer/zorin' },
+    { name: 'Padrao',   cls: 'default', logo: '/assets/images/distros/default.svg', enabledVar: null, urlVar: null, placeholder: '' }
 ];
 
 function renderRepositoryCards(vars) {
@@ -620,11 +620,11 @@ function renderRepositoryCards(vars) {
 
         const enabled = enVar && (enVar.current_value === 'true' || enVar.current_value === '1' || enVar.current_value === true);
 
-        if (d.enabledVar === null) continue;
+        if (d.enabledVar === null) return;
 
         html += `<div class="repo-card ${d.cls}">
             <div class="repo-card-header">
-                <img src="${d.logo}" alt="${d.name}" onerror="this.onerror=null;this.src='${d.logoFallback || '/assets/images/distros/default.svg'}'">
+                <img src="${d.logo}" alt="${d.name}" onerror="if(this.parentElement)this.style.display='none'">
                 <h4>${d.name}</h4>
             </div>`;
 
@@ -852,7 +852,7 @@ function renderTypedInput(v) {
         // Vars de imagem sao renderizadas via renderAssetCard (card completo).
         // Este fallback so e usado se alguem chamar renderTypedInput diretamente (ex: em modais).
         const preview = val
-            ? `<img src="${Utils.escapeHtml(val)}" class="asset-preview" onerror="this.style.display='none'" alt="Preview">`
+            ? `<img src="${Utils.escapeHtml(val)}" class="asset-preview" onerror="if(this.style)this.style.display='none'" alt="Preview">`
             : `<div class="asset-preview-empty">Sem imagem</div>`;
         return `
             <div class="asset-field">
