@@ -1,3 +1,7 @@
+-- Sincroniza core_conky.sh no banco com a versao do repositorio
+-- (adiciona font_size_hostname e move hostname para o topo com fonte maior)
+UPDATE scripts
+SET content = $script$
 #!/bin/bash
 # ============================================================================
 # Core Script: core_conky.sh
@@ -227,7 +231,7 @@ NoDisplay=false
 EOF
         ;;
     kde)
-        mkdir -p /usr/share/autostart
+        mkdir -p /etc/share/autostart
         cat > /usr/share/autostart/seederlinux-conky.desktop <<EOF
 [Desktop Entry]
 Type=Application
@@ -241,3 +245,5 @@ esac
 
 echo ">>> [09] Conky configurado!"
 echo "============================================================"
+$script$
+WHERE filename = 'core_conky.sh' AND is_core = true;
