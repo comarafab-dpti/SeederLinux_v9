@@ -56,7 +56,7 @@ const variableOptions = {
     'DESKTOP_ENV': ['', 'cinnamon', 'mate', 'gnome', 'xfce', 'kde', 'lxde'],
     'DISPLAY_MANAGER': ['', 'lightdm', 'gdm3', 'sddm'],
     'AUTH_METHOD': ['sssd', 'winbind', 'both'],
-    'THEME': ['Adwaita', 'Adwaita-dark', 'Arc', 'Arc-Dark', 'Breeze', 'Breeze-Dark', 'Mint-Y', 'Mint-Y-Dark', 'Numix', 'Pop', 'Yaru', 'Yaru-Dark'],
+    'THEME': ['DEFAULT', 'Adwaita', 'Adwaita-dark', 'Arc', 'Arc-Dark', 'Breeze', 'Breeze-Dark', 'Mint-Y', 'Mint-Y-Dark', 'Numix', 'Pop', 'Yaru', 'Yaru-Dark'],
     'CONKY_PROFILE': ['default', 'minimal', 'full', 'custom'],
     'OFFLINE_AUTH_ENABLED': 'boolean',
     'INVENTORY_ENABLED': 'boolean',
@@ -571,11 +571,11 @@ function renderVariables(vars) {
 
 // ===== Layout especial: Repositorios por distribuicao =====
 const repoDistros = [
-    { name: 'Debian',   cls: 'debian',   logo: '/assets/images/distros/debian.svg',   enabledVar: 'REPOSITORY_DEBIAN_ENABLED', urlVar: 'REPOSITORY_DEBIAN_URL', placeholder: 'http://mirror.intraer/debian' },
-    { name: 'Ubuntu',   cls: 'ubuntu',   logo: '/assets/images/distros/ubuntu.svg',   enabledVar: 'REPOSITORY_UBUNTU_ENABLED', urlVar: 'REPOSITORY_UBUNTU_URL', placeholder: 'http://mirror.intraer/ubuntu' },
-    { name: 'Linux Mint', cls: 'mint',   logo: '/assets/images/distros/linuxmint.svg', enabledVar: 'REPOSITORY_MINT_ENABLED', urlVar: 'REPOSITORY_MINT_URL', placeholder: 'http://mirror.intraer/mint' },
-    { name: 'Zorin OS', cls: 'zorin',    logo: '/assets/images/distros/zorin.svg',    enabledVar: 'REPOSITORY_ZORIN_ENABLED', urlVar: 'REPOSITORY_ZORIN_URL', placeholder: 'http://mirror.intraer/zorin' },
-    { name: 'Padrao',   cls: 'default', logo: '/assets/images/distros/default.svg', enabledVar: null, urlVar: null, placeholder: '' }
+    { name: 'Debian',   cls: 'debian',   logo: '/assets/images/distros/debian.png',   logoFallback: '/assets/images/distros/debian.svg',   enabledVar: 'REPOSITORY_DEBIAN_ENABLED', urlVar: 'REPOSITORY_DEBIAN_URL', placeholder: 'http://mirror.intraer/debian' },
+    { name: 'Ubuntu',   cls: 'ubuntu',   logo: '/assets/images/distros/ubuntu.png',   logoFallback: '/assets/images/distros/ubuntu.svg',   enabledVar: 'REPOSITORY_UBUNTU_ENABLED', urlVar: 'REPOSITORY_UBUNTU_URL', placeholder: 'http://mirror.intraer/ubuntu' },
+    { name: 'Linux Mint', cls: 'mint',   logo: '/assets/images/distros/linuxmint.png', logoFallback: '/assets/images/distros/linuxmint.svg', enabledVar: 'REPOSITORY_MINT_ENABLED', urlVar: 'REPOSITORY_MINT_URL', placeholder: 'http://mirror.intraer/mint' },
+    { name: 'Zorin OS', cls: 'zorin',    logo: '/assets/images/distros/zorin.png',    logoFallback: '/assets/images/distros/zorin.svg',    enabledVar: 'REPOSITORY_ZORIN_ENABLED', urlVar: 'REPOSITORY_ZORIN_URL', placeholder: 'http://mirror.intraer/zorin' },
+    { name: 'Padrao',   cls: 'default', logo: '/assets/images/distros/default.svg', logoFallback: '/assets/images/distros/default.svg', enabledVar: null, urlVar: null, placeholder: '' }
 ];
 
 function renderRepositoryCards(vars) {
@@ -624,7 +624,7 @@ function renderRepositoryCards(vars) {
 
         html += `<div class="repo-card ${d.cls}">
             <div class="repo-card-header">
-                <img src="${d.logo}" alt="${d.name}" onerror="this.onerror=null;this.src='/assets/images/distros/default.svg'">
+                <img src="${d.logo}" alt="${d.name}" onerror="this.onerror=null;this.src='${d.logoFallback || '/assets/images/distros/default.svg'}'">
                 <h4>${d.name}</h4>
             </div>`;
 
@@ -895,7 +895,7 @@ function renderConkyPanel(v, varId, val) {
     try { cfg = JSON.parse(val || '{}'); } catch (e) { cfg = {}; }
     cfg = Object.assign({
         position: 'top_right', transparent: true, color_text: '#FFFFFF', color_bg: '#000000',
-        font_size: 10, gap_x: 10, gap_y: 40,
+        font_size: 10, font_size_hostname: 14, gap_x: 10, gap_y: 40,
         show_cpu: true, show_ram: true, show_disk: true, disk_partition: '/',
         show_network: true, network_interface: 'eth0', show_top_processes: true,
         show_datetime: true, show_hostname: true, update_interval: 1.0
@@ -906,6 +906,13 @@ function renderConkyPanel(v, varId, val) {
     return `
     <div class="conky-panel" data-var-id="${varId}" data-type="json_conky">
         <input type="hidden" data-var-id="${varId}" data-type="conky-hidden" id="conky-hidden-${varId}" value='${JSON.stringify(cfg).replace(/'/g,"&apos;")}'>
+        <div class="conky-section conky-section-hostname">
+            <div class="conky-section-title">Hostname (destaque)</div>
+            <div class="conky-grid">
+                <label class="conky-inline"><input type="checkbox" ${cfg.show_hostname?'checked':''} onchange="updateConkyField(${varId},'show_hostname',this.checked)">Mostrar Hostname</label>
+                <label>Tamanho da fonte (hostname)<input type="number" min="8" max="32" class="var-input" value="${cfg.font_size_hostname}" onchange="updateConkyField(${varId},'font_size_hostname',parseInt(this.value))"></label>
+            </div>
+        </div>
         <div class="conky-section">
             <div class="conky-section-title">Aparencia</div>
             <div class="conky-grid">
@@ -930,7 +937,6 @@ function renderConkyPanel(v, varId, val) {
                 <label>Interface de rede<input type="text" class="var-input font-mono" value="${Utils.escapeHtml(cfg.network_interface)}" onchange="updateConkyField(${varId},'network_interface',this.value)"></label>
                 <label class="conky-inline"><input type="checkbox" ${cfg.show_top_processes?'checked':''} onchange="updateConkyField(${varId},'show_top_processes',this.checked)">Top 3 processos</label>
                 <label class="conky-inline"><input type="checkbox" ${cfg.show_datetime?'checked':''} onchange="updateConkyField(${varId},'show_datetime',this.checked)">Data/Hora</label>
-                <label class="conky-inline"><input type="checkbox" ${cfg.show_hostname?'checked':''} onchange="updateConkyField(${varId},'show_hostname',this.checked)">Hostname</label>
             </div>
         </div>
     </div>`;
