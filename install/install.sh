@@ -181,6 +181,12 @@ apply_database_schema() {
     print_step "Aplicando schema: $(basename "$SCHEMA_FILE")"
     PGPASSWORD="${DB_PASS}" psql -h localhost -U "${DB_USER}" -d "${DB_NAME}" -f "$SCHEMA_FILE" 2>&1 | grep -v "already exists" || true
 
+    # Garantir constraint UNIQUE em scripts.filename antes de carregar os scripts
+    # (necessaria para o ON CONFLICT (filename) do insert_core_scripts.sql)
+    print_step "Garantindo constraint UNIQUE em scripts.filename..."
+    PGPASSWORD="${DB_PASS}" psql -h localhost -U "${DB_USER}" -d "${DB_NAME}" -c \
+        "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scripts_filename_key') THEN ALTER TABLE scripts ADD CONSTRAINT scripts_filename_key UNIQUE (filename); END IF; END \$\$;" 2>/dev/null || true
+
     # Carregar scripts Core de provisionamento
     if [ -f "${SCRIPT_DIR}/insert_core_scripts.sql" ]; then
         print_step "Carregando scripts Core de provisionamento..."

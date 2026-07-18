@@ -250,6 +250,15 @@ CREATE TABLE IF NOT EXISTS scripts (
 CREATE INDEX IF NOT EXISTS idx_scripts_filename ON scripts(filename);
 CREATE INDEX IF NOT EXISTS idx_scripts_core ON scripts(is_core, execution_order);
 
+-- Constraint UNIQUE em scripts.filename para suportar ON CONFLICT (filename)
+-- (idempotente: so cria se ainda nao existir)
+DO $
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scripts_filename_key') THEN
+        ALTER TABLE scripts ADD CONSTRAINT scripts_filename_key UNIQUE (filename);
+    END IF;
+END $;
+
 -- ============================================================================
 -- Table 7: deploy_bundles
 -- ============================================================================
