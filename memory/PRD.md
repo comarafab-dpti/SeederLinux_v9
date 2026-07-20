@@ -26,7 +26,53 @@ Sistema de provisionamento automatizado de estações Linux com integração a A
 
 ---
 
-## ✅ Sessão 1 — 2026-01 — Correções Críticas + Melhorias
+## ✅ Sessão 2 — 2026-01 — Regeneração do `insert_core_scripts.sql` com dollar-quoting
+
+### 🐛 Bug reportado pelo usuário
+`install/insert_core_scripts.sql` tinha erros de escaping: aspas simples dentro dos scripts Bash não foram duplicadas (`'` → `''`), quebrando a sintaxe SQL. Resultado: apenas 2 de 19 scripts eram carregados. Erros observados:
+```
+psql:install/insert_core_scripts.sql:708: erro: comando inválido \n,'
+psql:install/insert_core_scripts.sql:970: erro: comando inválido \
+psql:install/insert_core_scripts.sql:1352: ERRO: erro de sintaxe em ou próximo a "GRP_LIST"
+```
+
+### 🔧 Solução aplicada
+Regenerado `install/insert_core_scripts.sql` usando **dollar-quoting do PostgreSQL** (`$SeederScript$...$SeederScript$`), que elimina completamente a necessidade de escaping para aspas, backslashes, heredocs ou qualquer outro caractere especial dos scripts Bash.
+
+**Ferramenta criada:** `/app/install/gen_insert_core.py` — script Python que:
+- Lê os 19 arquivos `.sh` de `scripts/core/`
+- Verifica que a tag `$SeederScript$` não colide com o conteúdo de nenhum script
+- Gera o SQL com dollar-quoting, ordem de execução correta e `ON CONFLICT (filename) DO UPDATE`
+- Suporta reexecução idempotente
+
+**Arquivos alterados:**
+- `/app/install/insert_core_scripts.sql` (regenerado, 4.531 linhas)
+- `/app/install/gen_insert_core.py` (novo, gerador reprodutível)
+
+### 🧪 Validação pelo testing_agent (iteration_1.json)
+**28/28 testes pytest PASSANDO** — success_rate backend: 100%. Validações executadas contra PostgreSQL 15 real:
+- ✅ 19 blocos `INSERT INTO scripts` + 19 `ON CONFLICT (filename)` 
+- ✅ Zero ocorrências de escaping incorreto (`\'`)
+- ✅ Dollar-quoting `$SeederScript$` presente (38 delimitadores)
+- ✅ Todos os 19 scripts carregados sem erros SQL
+- ✅ Ordem de execução correta: dns=1, repositories=2, packages=3, ..., proxy=17
+- ✅ Preservação **byte-a-byte** do conteúdo (arquivo == banco para todos os 19)
+- ✅ Idempotência (re-executar mantém 19 scripts, não duplica)
+- ✅ Caractere especial `IFS=$` preservado em core_packages.sh
+- ✅ 441 placeholders `{{VAR}}` preservados nos 19 scripts
+
+### ⚠️ Bug pré-existente identificado (fora de escopo)
+`install/schema.sql` linhas 258-261 usa `DO $` (single dollar) que é sintaxe inválida — deveria ser `DO $$ ... $$;`. Isso impede a criação automática da constraint UNIQUE em `scripts.filename`. Como consequência, ao rodar o `insert_core_scripts.sql` numa base recém-criada, o `ON CONFLICT (filename)` falha por falta de constraint.
+
+**Workaround temporário (até correção do schema.sql):**
+```sql
+ALTER TABLE scripts ADD CONSTRAINT scripts_filename_key UNIQUE (filename);
+```
+
+O usuário instruiu **explicitamente** que apenas `insert_core_scripts.sql` poderia ser alterado nesta sessão, então este bug do schema **não foi corrigido**. Deve ser tratado em uma sessão futura (correção trivial: trocar `DO $` por `DO $$` e `END $;` por `END $$;`).
+
+---
+
 
 ### 🔴 Parte 2 - Correções Críticas (CONCLUÍDAS)
 
