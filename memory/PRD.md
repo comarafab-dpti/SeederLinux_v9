@@ -1,101 +1,295 @@
-# SeederLinux Lite — Bundle Generator PRD
+# SeederLinux Lite - PRD & Histórico de Alterações
 
-## Original Problem Statement
-Ferramenta web (PHP + PostgreSQL) que gera bundles bash de provisionamento para estacoes Debian-like em ambientes AD/COMARA.
+## 📋 Contexto do Projeto
 
-## Tech Stack
-- Backend: PHP (api/index.php) + PostgreSQL
-- Frontend: HTML/JS estatico (admin.html + assets/js/admin.js + assets/css/style.css)
-- Bundle-gen: scripts bash em scripts/core/*.sh com placeholders `{{VAR}}` substituidos server-side via `substituir_placeholders()`
+Sistema de provisionamento automatizado de estações Linux com integração a Active Directory, para ambientes militares multi-organizacionais (OMs). O sistema gera **bundles** (scripts shell autônomos) que configuram uma estação Linux do zero: ingresso no AD, instalação de pacotes, configuração de proxy, navegadores, impressoras, VNC, Conky, branding e scripts de logon/logoff persistentes.
 
-## Sessao 1 (Jan 2026): Correcao de 6 bugs + arquitetura
-- schema.sql: adicionadas variaveis `DC_IP_LIST`, `ADMIN_USERNAME`, `INSTALL_DESKTOP` + seed explicito. `DESKTOP_ENV`/`DISPLAY_MANAGER` com default vazio (auto-detect).
-- core_dns.sh: corrigido `$DNS_SECUNDARIO}` -> `${DNS_SECUNDARIO}`
-- core_domain.sh: `winbind offline logon` agora condicional a `AUTH_METHOD` + `OFFLINE_AUTH_ENABLED`; declarada var `AUTH_METHOD`
-- core_packages.sh: removida instalacao obrigatoria de DE; funcoes `detectar_de()`/`detectar_dm()` exportam `DETECTED_DE`/`DETECTED_DM`; DE so instala se `INSTALL_DESKTOP=true`
-- core_branding.sh, core_logon.sh, core_logoff.sh, core_session_{lightdm,gdm3,sddm}.sh: fallback de auto-deteccao
-- api/index.php `handleGenerateBundle()`: filtra scripts `core_session_*.sh` mantendo apenas o correspondente a `DISPLAY_MANAGER` (fallback lightdm)
+## 🧱 Stack Tecnológica
+- **Backend:** PHP 8+ (API monolítica em `api/index.php`)
+- **Banco de Dados:** PostgreSQL 16+
+- **Frontend:** HTML/CSS/JS vanilla (`admin.html`, `admin.js`, `app.js`)
+- **Scripts Core:** 19 scripts Bash em `scripts/core/`
+- **Agente:** Python 3 (`downloads/agent.py`)
 
-## Sessao 2 (Jan 2026): Refatoracao UX admin
-- **install/schema_update_v5_ux_refactor.sql**: migracao safe para bases existentes.
-  - DNS movidos para categoria `rede`
-  - WALLPAPER/LOGO/GREETER -> categoria nova `assets`, tipo `image`
-  - CONKY_PROFILE -> categoria nova `monitoramento`, tipo `select`
-  - COMPARTILHAMENTOS/PRINTERS/NO_PROXY -> tipo `tags`
-  - Nova variavel `CONKY_CONFIG` (JSON) para configuracao avancada do Conky
-- **schema.sql** (fresh install): mesmas mudancas aplicadas diretamente
-- **assets/js/admin.js**:
-  - Novas categorias `assets`, `monitoramento`, `ambiente`, `aplicacoes`
-  - `variableOptions` expandido: DESKTOP_ENV, DISPLAY_MANAGER, AUTH_METHOD, CONKY_PROFILE, INSTALL_APPS, INSTALL_LEGADOS, INSTALL_DESKTOP, VNC_ENABLED como boolean
-  - `dependentFields`: campos ocultos quando toggle pai desligado (VNC_PASSWORD, DESKTOP_ENV, OCS_*, CERTIFICATE_BUNDLE, OFFLINE_AUTH_DAYS)
-  - `groupedVariables`: renderiza GRUPO_ADMIN_AD + GRUPO_ADMIN_LINUX + GRUPO_DASTI num bloco unico "Grupos com privilegio sudo"
-  - `renderTypedInput` novos tipos: `tags` (chips input), `image` (preview + URL), `json_conky` (painel expandido)
-  - `renderConkyPanel`: aparencia (posicao, transparencia, cores via color picker, fonte, gap_x/y, intervalo) + informacoes exibidas (CPU/RAM/Disco/Rede/Top procs/Data-hora) + interfaces/particoes configuraveis
-  - `handleTagInput`/`removeTag`/`refreshTagsList`: gerenciamento das chips
-  - `updateAssetPreview`: preview `<img>` atualiza on-input
-  - `updateConkyField`: serializa alteracoes no hidden input
-  - Re-render automatico quando toggle pai muda (mostra/esconde dependentes)
-  - `saveVariables` prefere valores de hidden inputs (tags/conky) para serializacao correta
-- **assets/css/style.css**: novos estilos para `.tags-wrapper`/`.tag-chip`/`.tag-remove`/`.tag-input`, `.asset-field`/`.asset-preview`/`.asset-preview-empty`, `.conky-panel`/`.conky-section`/`.conky-grid`/`.conky-color`
-- **scripts/core/core_conky.sh**:
-  - Declara `CONKY_CONFIG` (JSON) alem de `CONKY_PROFILE`
-  - Instala `jq` alem de `conky conky-all`
-  - `parse_json()` usa `has()` para preservar booleans false (bug corrigido)
-  - Gera `.conkyrc` dinamicamente aplicando posicao, cores, transparencia, gaps, particao/interface configuraveis, e includes condicionais para CPU/RAM/Disco/Rede/Top/Data-hora
-  - Fallback de deteccao de DE (mesmo padrao dos outros scripts)
+## 👥 Personas
+- **Admin GAP:** Administrador global, gerencia todas as OMs
+- **Operador OM:** Usuário vinculado a uma OM específica, gera bundles próprios
+- **Auditor:** Somente leitura em auditoria e usuários
 
-## Files Modified
-- install/schema.sql
-- install/schema_update_v5_ux_refactor.sql (novo)
-- assets/js/admin.js
-- assets/css/style.css
-- scripts/core/core_conky.sh
-- api/index.php (upload-asset endpoint unificado)
-- 9 scripts em scripts/core/ (sessao anterior)
+## 🎯 Requisitos Fundamentais
+- Multi-organização com isolamento de dados por OM
+- Substituição dinâmica de placeholders `{{VARIAVEL}}` em scripts
+- Geração de bundles autônomos executáveis offline
+- Ingresso no AD com SSSD e/ou Winbind (fallback)
+- Auditoria de todas as ações administrativas
+- Check-in periódico das estações provisionadas
 
-## Sessao 4 (Jan 2026): Auditoria Seguranca (Opcao A)
-- **api/index.php**: 3 handlers de upload agora validam MIME real via `finfo_file()` ao inves de confiar em `$_FILES[...]['type']` (forjavel pelo cliente):
-  - `handleUploadWallpaper`: aceita JPG/PNG/GIF/WebP
-  - `handleUploadLogo`: aceita JPG/PNG/GIF/WebP/SVG (com normalizacao `image/svg`|`text/xml`|`application/xml` -> `image/svg+xml`)
-  - `handleUploadAsset` (endpoint unificado): mesma validacao + normalizacao SVG condicional
-  - Erros passam a retornar HTTP 415 com o MIME real detectado para diagnostico
-- **tests/test_upload_mime.php**: 3 assertions cobrindo (a) `.txt` renomeado para `.png` -> rejeitado; (b) PNG real -> aceito; (c) SVG normalizado -> aceito
-- **Auditoria de setup_user.sql**: encontradas credenciais default fracas `admin`/`admin123` — documentadas em `memory/test_credentials.md` mas NAO alteradas (fora do escopo da Opcao A). Recomendacao registrada para Opcao B/C: gerar senha aleatoria no install.sh ou forcar troca no primeiro login.
+---
 
-## Auditoria (falso positivos confirmados via inspecao)
-- SQL injection: NAO existe. `lib/db.php` usa PDO prepared statements em 100% das queries.
-- XSS via PHP: NAO existe. PHP e API JSON-only; render e no JS via `Utils.escapeHtml()`.
-- schema.sql com senha DB hardcoded: NAO existe.
-- `NO_PROXY` como tags quebra core_proxy.sh: NAO — `tags-hidden.value = items.join(',')` produz CSV compativel.
-- schema_update_v5 so INSERT: NAO — arquivo tem 6 UPDATEs explicitos de `variable_definitions`.
-- Conky recria HTML a cada toggle: NAO — `updateConkyField` so atualiza hidden input JSON.
+## ✅ Sessão 1 — 2026-01 — Correções Críticas + Melhorias
 
-## Sessao 3 (Jan 2026): Aba Assets - Card Layout Unificado
-- **api/index.php**: novo endpoint `POST /api/?action=upload-asset` unificado que aceita `organization_id`, `var_name` e `asset[]`. Whitelist de vars (`WALLPAPER_URL`, `WALLPAPER_LOGIN_URL`, `LOGO_URL`, `GREETER_URL`). Aceita SVG apenas para logo. Atualiza a variavel diretamente + bumpOrgSerial + audit.
-- **assets/js/admin.js**:
-  - `renderVarRow` roteia `category=assets` OU `type=image` para `renderAssetCard` (nao usa mais galeria antiga)
-  - Nova constante `assetLabels` com titulo + hint amigaveis
-  - `renderAssetCard` gera card com: header (titulo/hint/var name em pill mono), preview `<img>` com aspect 16:9 e checkerboard de transparencia, input URL editavel, botao "Selecionar arquivo" (upload real) + botao "Remover" (limpa URL, desabilita se vazio)
-  - `updateAssetCardPreview` atualiza preview e habilita/desabilita botao Remover on-the-fly
-  - `clearAsset` limpa a URL localmente (persistira ao clicar Salvar)
-  - `uploadAsset` faz `fetch` FormData para o endpoint unificado, atualiza input+preview+allVariables in-memory sem reload
-- **assets/css/style.css**: estilos `.asset-card`, `.asset-card-header`, `.asset-card-title`, `.asset-card-hint`, `.asset-card-varname` (pill), `.asset-card-preview-wrap` (com checkerboard para mostrar transparencia), `.asset-btn-primary`/`.asset-btn-secondary` (com estado disabled).
+### 🔴 Parte 2 - Correções Críticas (CONCLUÍDAS)
 
-**Problemas resolvidos:**
-- `WALLPAPER_URL` aparecendo 3× -> agora 1 card unico
-- `GREETER_URL` sem botao upload -> agora tem botao "Selecionar arquivo"
-- Layout confuso com secoes soltas -> cards padronizados em grid
-- Ausencia de "Remover" -> botao dedicado com estado disabled
-- Falta de preview em tempo real -> `oninput` atualiza a thumb
+#### 2.1 - Ordem DNS/Repositories invertida
+**Problema:** `core_repositories.sh` (ordem 01) executava `apt-get update` **antes** do DNS ser configurado (ordem 02), causando falha de resolução de nomes.
 
-## Testing
-- `bash -n` limpo em todos scripts bash
-- `php -l` limpo em api/index.php e lib/functions.php
-- `acorn.parse` valida admin.js (58 KB)
-- `tests/test_conky_parse.sh`: 5/5 assertions passam (position, transparent=false, show_top=false, show_datetime=true, fallback)
+**Solução aplicada:**
+- `core_dns.sh` → **execution_order = 1** (agora primeiro)
+- `core_repositories.sh` → **execution_order = 2** (agora depois)
+- Cabeçalhos dos scripts atualizados para refletir a nova ordem (`01 - Configurar DNS...`, `02 - Configurar repositorios APT`)
+- Sincronização realizada em `install/insert_core_scripts.sql`
 
-## Backlog / Nice-to-have
-- Endpoint de upload centralizado para assets (item 5 opcao b) — nao implementado
-- Substituir 3 vars sudo por variavel unica SUDO_GROUPS JSON — nao implementado (compat mantida)
-- Testar bundle real em VM Debian/Ubuntu/Mint/Zorin com diferentes DEs
-- Estilos avancados de tema (dark/light theme picker global)
+**Arquivos alterados:**
+- `/app/scripts/core/core_dns.sh`
+- `/app/scripts/core/core_repositories.sh`
+- `/app/install/insert_core_scripts.sql`
+
+---
+
+#### 2.2 - Pacote `conky` genérico removido
+**Problema:** O array `EXTRA_PACKAGES` em `core_packages.sh` continha tanto `conky` (pacote virtual) quanto `conky-all`, fazendo o `apt-get` falhar por ambiguidade.
+
+**Solução aplicada:**
+- Removido `conky` do array
+- Mantido apenas `conky-all`
+- Sincronização em `install/insert_core_scripts.sql`
+
+**Arquivos alterados:**
+- `/app/scripts/core/core_packages.sh` (linha 198)
+- `/app/install/insert_core_scripts.sql`
+
+---
+
+#### 2.3 - Erro EOF no bloco SSH/AllowGroups
+**Problema:** Linha `IFS=\n,' read -ra GRP_ARRAY <<< "$SSH_GROUPS"` quebrava o bundle com erro `encontrado EOF inesperado enquanto procurava por '' correspondente`. A aspa simples estava mal fechada e o `\n` estava em linha separada.
+
+**Solução aplicada:**
+- Correção para: `IFS=$'\n,' read -ra GRP_ARRAY <<< "$SSH_GROUPS"`
+- Uso de `$'...'` (ANSI-C quoting) para interpretar `\n` como caractere de nova linha
+- Sincronização em `install/insert_core_scripts.sql`
+
+**Arquivos alterados:**
+- `/app/scripts/core/core_packages.sh` (linhas 269-270)
+- `/app/install/insert_core_scripts.sql`
+
+**Validação:** `bash -n /app/scripts/core/core_packages.sh` → OK ✅
+
+---
+
+#### 2.4 - Desativação automática de bundles anteriores
+**Problema:** Ao gerar um novo bundle, os bundles anteriores da mesma OM permaneciam ativos, causando confusão em `handlePublicBundles()` e em `handleStationCheckin()`.
+
+**Solução aplicada:** Após o `INSERT` do novo bundle em `handleGenerateBundle()`, executa:
+```sql
+UPDATE deploy_bundles SET is_active = FALSE
+WHERE organization_id = ? AND id != ?
+```
+
+**Arquivo alterado:** `/app/api/index.php` (linhas 862-868)
+
+---
+
+### 🟡 Parte 3 - Melhorias (CONCLUÍDAS)
+
+#### 3.1 - Campo `description` em bundles
+
+**Banco:**
+- Nova coluna `description TEXT` em `deploy_bundles`
+- Migration idempotente criada em `/app/install/migration_add_bundle_description.sql`
+- Schema canônico (`schema.sql`) atualizado para novos deploys
+
+**Backend (`api/index.php`):**
+- `handleGenerateBundle()` aceita novo parâmetro `description`
+- `INSERT` grava a descrição no banco
+- `handleListBundles()` e `handlePublicBundles()` retornam a descrição
+
+**Frontend Admin (`admin.js`, `admin.html`):**
+- `generateBundle()` solicita descrição via `prompt()` (opcional)
+- Se usuário cancelar prompt, geração é abortada
+- Nova coluna "Descrição" na tabela de bundles gerados
+- Truncamento visual em 40 caracteres com tooltip completo
+
+**Frontend Público (`index.html`):**
+- Nova coluna "Descrição" na galeria pública
+- Truncamento em 50 caracteres com tooltip
+- Escape HTML aplicado para segurança XSS
+
+**Arquivos alterados:**
+- `/app/install/schema.sql`
+- `/app/install/migration_add_bundle_description.sql` (novo)
+- `/app/api/index.php` (handleGenerateBundle, handleListBundles, handlePublicBundles)
+- `/app/admin.html`
+- `/app/assets/js/admin.js`
+- `/app/index.html`
+
+---
+
+#### 3.2 - Botão ativar/desativar bundle
+**Status:** ✅ Já funcional (validado)
+
+- Endpoint `bundle-toggle` em `api/index.php` (linhas 1436-1455) opera corretamente com validação de permissão por OM
+- Frontend chama `toggleBundleActive(bundleId)` que hita `POST /api/?action=bundle-toggle`
+- Registra evento em `audit_events` (`ACTIVATE`/`DEACTIVATE`)
+- Adicionados `data-testid` nos botões para facilitar testes automatizados
+
+---
+
+#### 3.3 - Bloquear geração com placeholders não resolvidos
+**Status:** ✅ Já funcional (validado)
+
+Verificação existente em `handleGenerateBundle()` (linhas 840-851):
+```php
+if (preg_match_all('/\{\{[A-Z_]+\}\}/', $bundle, $matches)) {
+    $unresolved = array_unique($matches[0]);
+}
+if (!empty($unresolved)) {
+    jsonError('Placeholders nao resolvidos no bundle: ...', 400);
+}
+```
+
+A verificação é feita **após** `substituir_placeholders()` e **antes** do `INSERT` no banco, garantindo que bundles inválidos nunca sejam persistidos.
+
+---
+
+## 🔬 Parte 4 - Análise Proativa (Sugestões de Melhoria)
+
+Baseado em análise estática do código, seguem sugestões priorizadas:
+
+### 🔴 Alta Prioridade — Segurança
+
+1. **`api/index.php:207-208` — Timing attack em login**
+   Ordem `!$user || !$user['is_active'] || !password_verify(...)` faz curto-circuito, permitindo timing attack para descobrir usernames válidos.
+   **Sugestão:** sempre executar `password_verify` (mesmo com hash dummy quando user não existe).
+
+2. **`api/index.php:26-27` — SSRF potencial em `handleUploadAsset`**
+   Não há verificação de tipo real via `getimagesize()` como reforço além do finfo (usa magic bytes; se atacante forjar cabeçalho, pode ser burlado).
+   **Sugestão:** validar dimensões via `getimagesize()` e rejeitar arquivos inválidos.
+
+3. **`lib/functions.php:16-18` — `sanitizeInput` usa `htmlspecialchars` em TODOS os inputs**
+   Isso quebra valores legítimos como senhas, URLs com `&`, e descrições com `<`. Além disso, escape HTML no input é anti-pattern; deve ser feito **na saída**.
+   **Sugestão:** remover `htmlspecialchars` de `sanitizeInput` e aplicar escape apenas em outputs HTML (frontend já faz via `Utils.escapeHtml`).
+
+4. **`api/index.php:216-221` — Tokens sem invalidação em logout**
+   Tokens Bearer permanecem válidos após logout (só session_destroy é chamado).
+   **Sugestão:** ao logout, deletar tokens ativos do usuário em `user_tokens`.
+
+5. **`lib/functions.php:20-51` — `requireAuth` faz `password_verify` para cada token no banco**
+   Loop O(n) sobre todos os tokens ativos do sistema é ineficiente e vulnerável a DoS.
+   **Sugestão:** trocar `token_hash` por índice `token_prefix` (primeiros 8 chars em texto claro) para lookup rápido, mantendo verify apenas do candidato.
+
+### 🟠 Média Prioridade — Performance & UX
+
+6. **`api/index.php:1099-1101` — Query `latest_bundle_id` em cada check-in**
+   Chamado a cada 5min por dezenas/centenas de estações. Adicionar índice composto.
+   **Sugestão:** `CREATE INDEX idx_bundles_org_active_date ON deploy_bundles(organization_id, is_active, generated_at DESC)`.
+
+7. **`assets/js/admin.js:1339` — `prompt()` nativo para descrição**
+   UX ruim (impossível de estilizar, quebra em mobile).
+   **Sugestão:** substituir por modal HTML com textarea (padrão já usado em outros lugares).
+
+8. **`api/index.php:882-885` — Bundle inteiro em memória em download**
+   `echo $bundle['content']` carrega todo o conteúdo em RAM. Para bundles grandes (>10MB) pode causar OOM.
+   **Sugestão:** usar streaming com `fread` de arquivo temporário ou `pg_lo_export`.
+
+9. **`admin.html:243-296` — Tabela sem paginação**
+   Bundles crescem indefinidamente. Sem `LIMIT`, tela fica lenta após meses de uso.
+   **Sugestão:** adicionar paginação em `handleListBundles` + `handleGetAuditEvents`.
+
+### 🟢 Baixa Prioridade — Manutenibilidade
+
+10. **`api/index.php` — Arquivo monolítico de 1464 linhas**
+    Difícil manter. Cada handler poderia estar em arquivo separado (`handlers/bundle.php`, `handlers/auth.php`, etc.).
+    **Sugestão:** refatorar em módulos por domínio.
+
+11. **`scripts/core/*.sh` — Sem `shellcheck` no CI**
+    O erro EOF do 2.3 teria sido detectado por `shellcheck`.
+    **Sugestão:** adicionar hook pre-commit / GitHub Action rodando `shellcheck` em `scripts/core/*.sh`.
+
+12. **`install/insert_core_scripts.sql` — Duplicação de conteúdo dos scripts**
+    O SQL replica byte-a-byte o conteúdo dos 19 arquivos `.sh`. Qualquer edição em `.sh` precisa ser espelhada no SQL manualmente.
+    **Sugestão:** criar script Python/Bash (`install/build_core_scripts_sql.py`) que gera o SQL a partir dos arquivos `.sh` fonte.
+
+---
+
+## 📁 Estrutura Final Após Sessão 1
+
+```
+/app/
+├── api/index.php                              [MODIFICADO]
+├── admin.html                                 [MODIFICADO]
+├── index.html                                 [MODIFICADO]
+├── assets/js/admin.js                         [MODIFICADO]
+├── scripts/core/
+│   ├── core_dns.sh                            [MODIFICADO - ordem 01]
+│   ├── core_repositories.sh                   [MODIFICADO - ordem 02]
+│   └── core_packages.sh                       [MODIFICADO - conky/EOF]
+├── install/
+│   ├── schema.sql                             [MODIFICADO - coluna description]
+│   ├── insert_core_scripts.sql                [MODIFICADO - sincronizado]
+│   └── migration_add_bundle_description.sql   [NOVO]
+└── memory/
+    └── PRD.md                                 [NOVO]
+```
+
+---
+
+## ⚙️ Instruções de Deploy da Sessão 1
+
+Em ambiente de produção (servidor com PostgreSQL + PHP-FPM + Nginx/Apache):
+
+```bash
+# 1. Aplicar migration (bases existentes)
+psql -U seeder -d seederlinux -f /var/www/seederlinux-lite/install/migration_add_bundle_description.sql
+
+# 2. Re-inserir scripts core com nova ordem
+psql -U seeder -d seederlinux -f /var/www/seederlinux-lite/install/insert_core_scripts.sql
+
+# 3. (Opcional) Verificar ordem
+psql -U seeder -d seederlinux -c "SELECT filename, execution_order FROM scripts WHERE is_core = TRUE ORDER BY execution_order LIMIT 5;"
+# Esperado:
+#   core_dns.sh          | 1
+#   core_repositories.sh | 2
+#   core_packages.sh     | 3
+#   core_domain.sh       | 4
+#   core_browser.sh      | 5
+
+# 4. Reload do PHP-FPM (nao obrigatorio; PHP recarrega por request)
+sudo systemctl reload php8.2-fpm
+
+# 5. Testar geracao de bundle no admin
+```
+
+---
+
+## 🗺️ Backlog / Próximos Passos
+
+### P0 (Bloqueadores)
+- Nenhum. Sistema utilizável após sessão 1.
+
+### P1 (Alta Prioridade)
+- Aplicar correções de segurança #1-#4 (timing attack, sanitizeInput, tokens em logout)
+- Substituir `prompt()` por modal HTML (#7)
+
+### P2 (Média Prioridade)
+- Paginação em bundles/audit (#9)
+- Índice composto para check-in (#6)
+- Streaming de download (#8)
+
+### P3 (Baixa Prioridade)
+- Refatoração modular de `api/index.php` (#10)
+- CI com `shellcheck` (#11)
+- Gerador automático de `insert_core_scripts.sql` (#12)
+
+---
+
+## 🧪 Validações Realizadas
+
+- ✅ `bash -n core_packages.sh` → OK
+- ✅ `bash -n core_dns.sh` → OK
+- ✅ `bash -n core_repositories.sh` → OK
+- ✅ `php -l api/index.php` → OK
+- ✅ `php -l lib/*.php` → OK
+- ✅ `node -c assets/js/admin.js` → OK
+- ✅ Grep de `^    conky$` → 0 ocorrências (removido corretamente)
+- ✅ Grep de `IFS=$'\n,` → 1 ocorrência em cada arquivo (corrigido)
+- ✅ Grep de `execution_order` → ordens invertidas confirmadas

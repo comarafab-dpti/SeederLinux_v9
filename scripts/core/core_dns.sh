@@ -12,7 +12,7 @@
 set -e
 
 echo "============================================================"
-echo "02 - Configurar DNS, NTP e resolucao de nomes"
+echo "01 - Configurar DNS, NTP e resolucao de nomes"
 echo "============================================================"
 
 # ============================================================
@@ -123,5 +123,5 @@ else
     echo ">>> NTP_SERVER nao definido, usando padrao do sistema"
 fi
 
-echo ">>> [02] DNS, NTP e resolucao de nomes configurados!"
+echo ">>> [01] DNS, NTP e resolucao de nomes configurados!"
 echo "============================================================"

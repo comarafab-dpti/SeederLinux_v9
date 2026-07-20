@@ -18,7 +18,7 @@
 set -e
 
 echo "============================================================"
-echo "01 - Configurar repositorios APT"
+echo "02 - Configurar repositorios APT"
 echo "============================================================"
 
 # ============================================================
@@ -244,5 +244,5 @@ esac
 echo ">>> Atualizando apt-get update..."
 apt-get update
 
-echo ">>> [01] Repositorios configurados com sucesso!"
+echo ">>> [02] Repositorios configurados com sucesso!"
 echo "============================================================"

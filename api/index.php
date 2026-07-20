@@ -712,6 +712,7 @@ function handleUploadScript() {
 function handleGenerateBundle($input) {
     $orgId = (int)($input['organization_id'] ?? 0);
     $selectedScripts = $input['scripts'] ?? [];
+    $description = sanitizeInput($input['description'] ?? '');
 
     if (!$orgId) jsonError('Organization ID required');
 
@@ -853,12 +854,18 @@ function handleGenerateBundle($input) {
     $userId = $_SESSION['user_id'] ?? null;
 
     Database::execute(
-        "INSERT INTO deploy_bundles (organization_id, user_id, filename, content, script_ids, scripts_count, generated_at)
-         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
-        [$orgId, $userId, $filename, $bundle, json_encode($scriptIds), count($scripts)]
+        "INSERT INTO deploy_bundles (organization_id, user_id, filename, description, content, script_ids, scripts_count, generated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+        [$orgId, $userId, $filename, $description, $bundle, json_encode($scriptIds), count($scripts)]
     );
 
     $bundleId = (int)Database::lastInsertId();
+
+    // Desativar bundles anteriores desta organizacao
+    Database::execute(
+        "UPDATE deploy_bundles SET is_active = FALSE WHERE organization_id = ? AND id != ?",
+        [$orgId, $bundleId]
+    );
 
     bumpOrgSerial($orgId);
 
@@ -1404,7 +1411,7 @@ function handleUploadAsset() {
 
 function handlePublicBundles() {
     $bundles = Database::fetchAll(
-        "SELECT db.id, db.filename, db.scripts_count, db.generated_at,
+        "SELECT db.id, db.filename, db.description, db.scripts_count, db.generated_at,
                 o.name as org_name, o.acronym
          FROM deploy_bundles db
          JOIN organizations o ON o.id = db.organization_id
@@ -1424,7 +1431,7 @@ function handleListBundles($orgId) {
     if (!$orgId) jsonError('org_id required');
 
     $bundles = Database::fetchAll(
-        "SELECT id, filename, scripts_count, generated_at, is_active, octet_length(content) as content_size
+        "SELECT id, filename, description, scripts_count, generated_at, is_active, octet_length(content) as content_size
          FROM deploy_bundles
          WHERE organization_id = ?
          ORDER BY generated_at DESC",

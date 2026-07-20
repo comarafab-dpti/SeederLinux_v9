@@ -281,6 +281,7 @@ $ python3 agent.py --org <span class="text-amber-400">COMARA</span>
                                 <tr>
                                     <th class="px-6 py-4 text-sm font-semibold text-slate-300">Arquivo</th>
                                     <th class="px-6 py-4 text-sm font-semibold text-slate-300">OM</th>
+                                    <th class="px-6 py-4 text-sm font-semibold text-slate-300">Descrição</th>
                                     <th class="px-6 py-4 text-sm font-semibold text-slate-300">Scripts</th>
                                     <th class="px-6 py-4 text-sm font-semibold text-slate-300">Data</th>
                                     <th class="px-6 py-4 text-sm font-semibold text-slate-300 text-center">Ação</th>
@@ -288,7 +289,7 @@ $ python3 agent.py --org <span class="text-amber-400">COMARA</span>
                             </thead>
                             <tbody id="bundles-tbody">
                                 <tr>
-                                    <td colspan="5" class="px-6 py-8 text-center text-slate-500">
+                                    <td colspan="6" class="px-6 py-8 text-center text-slate-500">
                                         <div class="inline-flex items-center gap-2">
                                             <svg class="animate-spin h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24">
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -400,13 +401,18 @@ $ python3 agent.py --org <span class="text-amber-400">COMARA</span>
                         const date = new Date(b.generated_at);
                         const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
                             ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        const escape = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                        const descHtml = b.description
+                            ? `<span class="text-slate-300" title="${escape(b.description)}">${escape(b.description.length > 50 ? b.description.substring(0, 50) + '...' : b.description)}</span>`
+                            : '<span class="text-slate-600 italic">Sem descrição</span>';
                         return `
                             <tr class="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                                <td class="px-6 py-4 text-sm text-slate-300 font-mono">${b.filename || '-'}</td>
+                                <td class="px-6 py-4 text-sm text-slate-300 font-mono">${escape(b.filename || '-')}</td>
                                 <td class="px-6 py-4 text-sm">
-                                    <span class="text-blue-400 font-semibold">${b.acronym || '-'}</span>
-                                    <span class="text-slate-500 ml-2">${b.org_name || ''}</span>
+                                    <span class="text-blue-400 font-semibold">${escape(b.acronym || '-')}</span>
+                                    <span class="text-slate-500 ml-2">${escape(b.org_name || '')}</span>
                                 </td>
+                                <td class="px-6 py-4 text-sm max-w-xs">${descHtml}</td>
                                 <td class="px-6 py-4 text-sm text-slate-400">${b.scripts_count || 0}</td>
                                 <td class="px-6 py-4 text-sm text-slate-400">${dateStr}</td>
                                 <td class="px-6 py-4 text-center">
@@ -426,7 +432,7 @@ $ python3 agent.py --org <span class="text-amber-400">COMARA</span>
                     document.getElementById('stat-updated').textContent = '-';
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="5" class="px-6 py-8 text-center text-slate-500">
+                            <td colspan="6" class="px-6 py-8 text-center text-slate-500">
                                 Nenhum bundle disponível ainda. Acesse o
                                 <a href="/login.html" class="text-blue-400 hover:text-blue-300 underline">painel administrativo</a>
                                 para gerar.
@@ -444,7 +450,7 @@ $ python3 agent.py --org <span class="text-amber-400">COMARA</span>
                 console.error('Error loading data:', error);
                 document.getElementById('bundles-tbody').innerHTML = `
                     <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-rose-400">
+                        <td colspan="6" class="px-6 py-8 text-center text-rose-400">
                             Erro ao carregar bundles. Verifique a conexão com o servidor.
                         </td>
                     </tr>

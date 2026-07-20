@@ -1334,9 +1334,19 @@ async function generateBundle() {
     if (!currentOrgId) { Toast.error('Selecione uma organizacao'); return; }
 
     const selected = [...document.querySelectorAll('.script-checkbox:checked')].map(el => parseInt(el.value));
+
+    // Solicitar descricao opcional do bundle
+    const description = prompt('Descricao do bundle (opcional):', '');
+    // Se o usuario cancelar (prompt retorna null), aborta a geracao
+    if (description === null) return;
+
     Toast.info('Gerando bundle...');
 
-    const res = await API.post('generate-bundle', { organization_id: currentOrgId, scripts: selected });
+    const res = await API.post('generate-bundle', {
+        organization_id: currentOrgId,
+        scripts: selected,
+        description: description.trim()
+    });
     if (res.success) {
         Toast.success('Bundle gerado com sucesso');
         loadBundles(currentOrgId);
@@ -1353,13 +1363,13 @@ async function loadBundles(orgId) {
     const el = document.getElementById('bundles-tbody');
     if (!el) return;
 
-    el.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Carregando bundles...</td></tr>';
+    el.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Carregando bundles...</td></tr>';
 
     const res = await API.get('bundles', { org_id: orgId });
-    if (!res.success) { el.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-rose-400">Erro ao carregar</td></tr>'; return; }
+    if (!res.success) { el.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-rose-400">Erro ao carregar</td></tr>'; return; }
 
     if (!res.data || res.data.length === 0) {
-        el.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Nenhum bundle gerado ainda</td></tr>';
+        el.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Nenhum bundle gerado ainda</td></tr>';
         return;
     }
 
@@ -1371,15 +1381,19 @@ async function loadBundles(orgId) {
         const activeBadge = b.is_active
             ? '<span class="badge badge-success">Ativo</span>'
             : '<span class="badge badge-secondary">Inativo</span>';
+        const descText = b.description
+            ? `<span title="${Utils.escapeHtml(b.description)}">${Utils.escapeHtml(b.description.length > 40 ? b.description.substring(0, 40) + '...' : b.description)}</span>`
+            : '<span class="text-slate-500 italic">—</span>';
         return `
-            <tr class="border-b border-slate-700/50">
+            <tr class="border-b border-slate-700/50" data-testid="bundle-row-${b.id}">
                 <td class="px-4 py-3 text-sm text-slate-300">${dateStr}</td>
+                <td class="px-4 py-3 text-sm text-slate-300">${descText}</td>
                 <td class="px-4 py-3 text-sm text-slate-400">${b.scripts_count || 0}</td>
                 <td class="px-4 py-3 text-sm text-slate-400">${sizeKb} KB</td>
                 <td class="px-4 py-3">${activeBadge}</td>
                 <td class="px-4 py-3 text-right">
-                    <button onclick="downloadBundle(${b.id})" class="text-blue-400 hover:text-blue-300 text-sm mr-2">Download</button>
-                    <button onclick="toggleBundleActive(${b.id})" class="text-amber-400 hover:text-amber-300 text-sm">${b.is_active ? 'Desativar' : 'Ativar'}</button>
+                    <button data-testid="bundle-download-${b.id}" onclick="downloadBundle(${b.id})" class="text-blue-400 hover:text-blue-300 text-sm mr-2">Download</button>
+                    <button data-testid="bundle-toggle-${b.id}" onclick="toggleBundleActive(${b.id})" class="text-amber-400 hover:text-amber-300 text-sm">${b.is_active ? 'Desativar' : 'Ativar'}</button>
                 </td>
             </tr>`;
     }).join('');

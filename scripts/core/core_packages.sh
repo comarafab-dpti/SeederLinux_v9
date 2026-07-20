@@ -195,7 +195,6 @@ EXTRA_PACKAGES=(
     cups-client
     system-config-printer
     x11vnc
-    conky
     conky-all
     jq
     dmidecode
@@ -267,8 +266,7 @@ if [ -n "$SSH_GROUPS" ] && [ "$SSH_GROUPS" != "" ]; then
     echo ">>> Configurando AllowGroups: $SSH_GROUPS"
     if [ -f /etc/ssh/sshd_config ]; then
         # Processar grupos (uma por linha ou separados por virgula)
-        IFS=
-\n,' read -ra GRP_ARRAY <<< "$SSH_GROUPS"
+        IFS=$'\n,' read -ra GRP_ARRAY <<< "$SSH_GROUPS"
         GRP_LIST=""
         for GRP in "${GRP_ARRAY[@]}"; do
             GRP=$(echo "$GRP" | xargs)

@@ -268,6 +268,7 @@ CREATE TABLE IF NOT EXISTS deploy_bundles (
     organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     filename VARCHAR(255),
+    description TEXT,
     content TEXT NOT NULL,
     script_ids TEXT,
     scripts_count INTEGER DEFAULT 0,

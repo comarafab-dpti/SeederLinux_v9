@@ -11,7 +11,7 @@
 -- Inserir scripts core
 
 -- ============================================================================
--- Configuracao de Repositorios (ordem 1)
+-- Configuracao de Repositorios (ordem 2)
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
@@ -38,7 +38,7 @@ VALUES (
 set -e
 
 echo "============================================================"
-echo "01 - Configurar repositorios APT"
+echo "02 - Configurar repositorios APT"
 echo "============================================================"
 
 # ============================================================
@@ -264,12 +264,12 @@ esac
 echo ">>> Atualizando apt-get update..."
 apt-get update
 
-echo ">>> [01] Repositorios configurados com sucesso!"
+echo ">>> [02] Repositorios configurados com sucesso!"
 echo "============================================================"
 ',
     TRUE,
     TRUE,
-    1,  -- execution_order
+    2,  -- execution_order (repositories agora vem DEPOIS do DNS)
     1,
     NULL
 ) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
@@ -281,7 +281,7 @@ echo "============================================================"
     is_active = EXCLUDED.is_active;
 
 -- ============================================================================
--- Configuracao de DNS (ordem 2)
+-- Configuracao de DNS (ordem 1)
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
@@ -302,7 +302,7 @@ VALUES (
 set -e
 
 echo "============================================================"
-echo "02 - Configurar DNS, NTP e resolucao de nomes"
+echo "01 - Configurar DNS, NTP e resolucao de nomes"
 echo "============================================================"
 
 # ============================================================
@@ -413,12 +413,12 @@ else
     echo ">>> NTP_SERVER nao definido, usando padrao do sistema"
 fi
 
-echo ">>> [02] DNS, NTP e resolucao de nomes configurados!"
+echo ">>> [01] DNS, NTP e resolucao de nomes configurados!"
 echo "============================================================"
 ',
     TRUE,
     TRUE,
-    2,  -- execution_order
+    1,  -- execution_order (DNS agora vem PRIMEIRO, antes dos repositories)
     1,
     NULL
 ) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
@@ -634,7 +634,6 @@ EXTRA_PACKAGES=(
     cups-client
     system-config-printer
     x11vnc
-    conky
     conky-all
     jq
     dmidecode
@@ -706,8 +705,7 @@ if [ -n "$SSH_GROUPS" ] && [ "$SSH_GROUPS" != "" ]; then
     echo ">>> Configurando AllowGroups: $SSH_GROUPS"
     if [ -f /etc/ssh/sshd_config ]; then
         # Processar grupos (uma por linha ou separados por virgula)
-        IFS=
-\n,'' read -ra GRP_ARRAY <<< "$SSH_GROUPS"
+        IFS=$'\n,' read -ra GRP_ARRAY <<< "$SSH_GROUPS"
         GRP_LIST=""
         for GRP in "${GRP_ARRAY[@]}"; do
             GRP=$(echo "$GRP" | xargs)
