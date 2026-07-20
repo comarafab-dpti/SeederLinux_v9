@@ -1,0 +1,23 @@
+{
+  "summary": "Validated /app/install/insert_core_scripts.sql end-to-end against a live PostgreSQL 15 instance. All 11 requested checks pass: file structure (19 INSERTs / ON CONFLICT), no backslash escaping, PostgreSQL dollar-quoting ($SeederScript$) used (38 delimiters + 1 header comment reference), all 19 core scripts loaded without SQL errors, correct execution order (DNS=1, Repositories=2, Packages=3, ... Proxy=17), byte-identical content preservation for all 19 files, idempotent re-run keeps count at 19, special char 'IFS=$' preserved in core_packages.sh, and 441 {PLACEHOLDER} tokens preserved across the 19 scripts. 28/28 pytest cases passing.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_insert_core_scripts.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Pre-existing bug in /app/install/schema.sql (lines 258-261): uses 'DO $' (single dollar) instead of proper dollar-quoted block 'DO $$ ... $$;' which causes syntax errors and prevents automatic creation of the UNIQUE constraint on scripts.filename. Out of scope for this task per user instruction, but should be fixed later by main agent - otherwise insert_core_scripts.sql cannot run against a fresh schema without manual intervention."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_insert_core_scripts.py (new file)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "PostgreSQL: seeder / seeder123 @ localhost:5432 / seederlinux",
+  "seed_data_creation": "Created DB 'seederlinux' owned by 'seeder'. Applied /app/install/schema.sql (with expected DO $ error). Manually added UNIQUE constraint scripts_filename_key on scripts(filename) as instructed. Granted table/sequence privileges to seeder.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "PostgreSQL 15 already installed & running (service postgresql start). DB seederlinux exists with 19 core scripts loaded. To re-run tests: `PGPASSWORD=seeder123 python -m pytest /app/backend/tests/test_insert_core_scripts.py -v`. Schema.sql has known pre-existing DO $ bug at lines 258-261 - do not fix as part of this task.",
+  "rca of the issue": "Root cause of original bug: gen_insert_core.py originally emitted SQL literals with backslash-style escaping of embedded single quotes inside bash content. Some bash scripts contain sequences that broke the SQL tokenizer (e.g., unescaped ' or heredoc EOF markers) causing psql to abort mid-file - only 2/19 scripts were loaded. Fix (already applied by main agent): regenerate SQL using PostgreSQL dollar-quoted strings delimited with $SeederScript$ ... $SeederScript$ which requires zero escaping of any characters inside bash content. Verification: 28-case pytest suite confirms structural correctness, byte-identical DB persistence for all 19 files, correct execution order, idempotency, and preservation of special characters ($ signs) and {PLACEHOLDER} tokens."
+}

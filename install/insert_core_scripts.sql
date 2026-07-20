@@ -3,22 +3,176 @@
 -- ============================================================================
 -- Este arquivo popula a tabela 'scripts' com todos os scripts Core.
 -- Gerado automaticamente a partir dos arquivos em scripts/core/.
+--
+-- ESCAPING: Usa dollar-quoting do PostgreSQL ($SeederScript$) para o conteudo
+-- dos scripts, eliminando problemas com aspas simples, aspas duplas,
+-- backslashes e qualquer outro caractere especial no bash.
 -- ============================================================================
 
 -- Limpar scripts core existentes (opcional - descomente se necessario)
 -- DELETE FROM scripts WHERE is_core = TRUE;
 
--- Inserir scripts core
 
 -- ============================================================================
--- Configuracao de Repositorios (ordem 2)
+-- Configuracao de DNS (ordem 1) - core_dns.sh
+-- ============================================================================
+INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
+VALUES (
+    'Configuracao de DNS',
+    'core_dns.sh',
+    'Configura DNS temporario, NTP e /etc/hosts. Roda ANTES de repositorios para permitir apt-get update.',
+    $SeederScript$#!/bin/bash
+# ============================================================================
+# Core Script: core_dns.sh
+# SeederLinux Lite - DNS, NTP e resolucao de nomes
+# ============================================================================
+# Configura DNS temporario para permitir resolucao durante o provisionamento,
+# ajusta /etc/resolv.conf, /etc/hosts e sincroniza NTP.
+# Os placeholders {{VARIAVEL}} são substituídos automaticamente
+# pelo sistema na geração do bundle.
+# ============================================================================
+
+set -e
+
+echo "============================================================"
+echo "01 - Configurar DNS, NTP e resolucao de nomes"
+echo "============================================================"
+
+# ============================================================
+# Variáveis
+# ============================================================
+DOMINIO="{{DOMINIO}}"
+DC_IP="{{DC_IP}}"
+DC_IP_LIST="{{DC_IP_LIST}}"
+DNS_PRIMARIO="{{DNS_PRIMARIO}}"
+DNS_SECUNDARIO="{{DNS_SECUNDARIO}}"
+DNS_INTERNET="{{DNS_INTERNET}}"
+NTP_SERVER="{{NTP_SERVER}}"
+OM_ACRONYM="{{OM_ACRONYM}}"
+
+echo ">>> Dominio: $DOMINIO"
+echo ">>> DNS primario: $DNS_PRIMARIO"
+echo ">>> DNS secundario: ${DNS_SECUNDARIO}"
+echo ">>> NTP: $NTP_SERVER"
+
+# ============================================================
+# Hostname interativo
+# ============================================================
+CURRENT_HOSTNAME=$(hostname)
+echo ">>> Hostname atual: $CURRENT_HOSTNAME"
+read -p ">>> Deseja alterar o hostname? (s/N): " CHANGE_HOST
+if [[ "$CHANGE_HOST" =~ ^[Ss]$ ]]; then
+    read -p ">>> Novo hostname: " NEW_HOSTNAME
+    hostnamectl set-hostname "$NEW_HOSTNAME"
+    echo ">>> Hostname alterado para: $NEW_HOSTNAME"
+fi
+
+HOSTNAME_SHORT=$(hostname | cut -d. -f1)
+HOSTNAME_FQDN="${HOSTNAME_SHORT}.${DOMINIO}"
+
+# ============================================================
+# DNS temporário (para permitir apt-get durante o provisionamento)
+# ============================================================
+echo ">>> Configurando DNS temporario (internet primeiro para baixar pacotes)..."
+echo "nameserver $DNS_INTERNET" > /etc/resolv.conf
+if [ -n "$DNS_PRIMARIO" ] && [ "$DNS_PRIMARIO" != "" ]; then
+    echo "nameserver $DNS_PRIMARIO" >> /etc/resolv.conf
+fi
+if [ -n "$DNS_SECUNDARIO" ] && [ "$DNS_SECUNDARIO" != "" ]; then
+    echo "nameserver $DNS_SECUNDARIO" >> /etc/resolv.conf
+fi
+echo "search $DOMINIO" >> /etc/resolv.conf
+echo ">>> DNS temporario configurado"
+
+# ============================================================
+# /etc/hosts - garantir resolucao do proprio host e do dominio
+# ============================================================
+echo ">>> Configurando /etc/hosts..."
+
+cp /etc/hosts /etc/hosts.bak.$(date +%Y%m%d%H%M%S) 2>/dev/null || true
+
+cat > /etc/hosts <<EOF
+127.0.0.1   localhost
+127.0.1.1   ${HOSTNAME_FQDN} ${HOSTNAME_SHORT}
+
+# Controladores de dominio
+EOF
+
+# Adiciona todos os DCs no /etc/hosts
+DC_HOSTNAME="dc-${OM_ACRONYM,,}"
+for DC in $DC_IP_LIST; do
+    echo "$DC    ${DC_HOSTNAME}.${DOMINIO} ${DC_HOSTNAME}" >> /etc/hosts
+done
+
+echo ">>> /etc/hosts configurado"
+
+# ============================================================
+# NTP - sincronizar horario com o servidor
+# ============================================================
+echo ">>> Configurando NTP..."
+if command -v timedatectl &> /dev/null; then
+    timedatectl set-ntp true 2>/dev/null || true
+fi
+
+if [ -n "$NTP_SERVER" ] && [ "$NTP_SERVER" != "" ]; then
+    # Tenta sincronizar imediatamente
+    if command -v ntpdate &> /dev/null; then
+        ntpdate "$NTP_SERVER" 2>/dev/null || true
+    elif command -v chronyc &> /dev/null; then
+        chronyc -a makestep 2>/dev/null || true
+    fi
+
+    # Configura NTP permanente
+    if [ -d /etc/chrony ]; then
+        cat > /etc/chrony/chrony.conf <<EOF
+server $NTP_SERVER iburst
+driftfile /var/lib/chrony/chrony.drift
+makestep 1.0 3
+rtcsync
+EOF
+        systemctl restart chrony 2>/dev/null || true
+    elif [ -f /etc/ntp.conf ]; then
+        cp /etc/ntp.conf /etc/ntp.conf.bak 2>/dev/null || true
+        cat > /etc/ntp.conf <<EOF
+server $NTP_SERVER iburst
+driftfile /var/lib/ntp/ntp.drift
+restrict default kod nomodify notrap nopeer noquery
+restrict 127.0.0.1
+EOF
+        systemctl restart ntp 2>/dev/null || true
+    fi
+    echo ">>> NTP configurado: $NTP_SERVER"
+else
+    echo ">>> NTP_SERVER nao definido, usando padrao do sistema"
+fi
+
+echo ">>> [01] DNS, NTP e resolucao de nomes configurados!"
+echo "============================================================"
+$SeederScript$,
+    TRUE,
+    TRUE,
+    1,
+    1,
+    NULL
+) ON CONFLICT (filename) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    content = EXCLUDED.content,
+    execution_order = EXCLUDED.execution_order,
+    version = EXCLUDED.version,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
+
+-- ============================================================================
+-- Configuracao de Repositorios (ordem 2) - core_repositories.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Configuracao de Repositorios',
     'core_repositories.sh',
-    'Configura repositorios APT (oficial, espelho ou customizado)',
-    '#!/bin/bash
+    'Configura repositorios APT (oficial, espelho ou customizado) apos o DNS estar resolvendo.',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_repositories.sh
 # SeederLinux Lite - Configurar sources.list (APT)
@@ -266,178 +420,31 @@ apt-get update
 
 echo ">>> [02] Repositorios configurados com sucesso!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    2,  -- execution_order (repositories agora vem DEPOIS do DNS)
+    2,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Configuracao de DNS (ordem 1)
--- ============================================================================
-INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
-VALUES (
-    'Configuracao de DNS',
-    'core_dns.sh',
-    'Configura DNS primario e secundario do sistema',
-    '#!/bin/bash
-# ============================================================================
-# Core Script: core_dns.sh
-# SeederLinux Lite - DNS, NTP e resolucao de nomes
-# ============================================================================
-# Configura DNS temporario para permitir resolucao durante o provisionamento,
-# ajusta /etc/resolv.conf, /etc/hosts e sincroniza NTP.
-# Os placeholders {{VARIAVEL}} são substituídos automaticamente
-# pelo sistema na geração do bundle.
-# ============================================================================
-
-set -e
-
-echo "============================================================"
-echo "01 - Configurar DNS, NTP e resolucao de nomes"
-echo "============================================================"
-
-# ============================================================
-# Variáveis
-# ============================================================
-DOMINIO="{{DOMINIO}}"
-DC_IP="{{DC_IP}}"
-DC_IP_LIST="{{DC_IP_LIST}}"
-DNS_PRIMARIO="{{DNS_PRIMARIO}}"
-DNS_SECUNDARIO="{{DNS_SECUNDARIO}}"
-DNS_INTERNET="{{DNS_INTERNET}}"
-NTP_SERVER="{{NTP_SERVER}}"
-OM_ACRONYM="{{OM_ACRONYM}}"
-
-echo ">>> Dominio: $DOMINIO"
-echo ">>> DNS primario: $DNS_PRIMARIO"
-echo ">>> DNS secundario: ${DNS_SECUNDARIO}"
-echo ">>> NTP: $NTP_SERVER"
-
-# ============================================================
-# Hostname interativo
-# ============================================================
-CURRENT_HOSTNAME=$(hostname)
-echo ">>> Hostname atual: $CURRENT_HOSTNAME"
-read -p ">>> Deseja alterar o hostname? (s/N): " CHANGE_HOST
-if [[ "$CHANGE_HOST" =~ ^[Ss]$ ]]; then
-    read -p ">>> Novo hostname: " NEW_HOSTNAME
-    hostnamectl set-hostname "$NEW_HOSTNAME"
-    echo ">>> Hostname alterado para: $NEW_HOSTNAME"
-fi
-
-HOSTNAME_SHORT=$(hostname | cut -d. -f1)
-HOSTNAME_FQDN="${HOSTNAME_SHORT}.${DOMINIO}"
-
-# ============================================================
-# DNS temporário (para permitir apt-get durante o provisionamento)
-# ============================================================
-echo ">>> Configurando DNS temporario (internet primeiro para baixar pacotes)..."
-echo "nameserver $DNS_INTERNET" > /etc/resolv.conf
-if [ -n "$DNS_PRIMARIO" ] && [ "$DNS_PRIMARIO" != "" ]; then
-    echo "nameserver $DNS_PRIMARIO" >> /etc/resolv.conf
-fi
-if [ -n "$DNS_SECUNDARIO" ] && [ "$DNS_SECUNDARIO" != "" ]; then
-    echo "nameserver $DNS_SECUNDARIO" >> /etc/resolv.conf
-fi
-echo "search $DOMINIO" >> /etc/resolv.conf
-echo ">>> DNS temporario configurado"
-
-# ============================================================
-# /etc/hosts - garantir resolucao do proprio host e do dominio
-# ============================================================
-echo ">>> Configurando /etc/hosts..."
-
-cp /etc/hosts /etc/hosts.bak.$(date +%Y%m%d%H%M%S) 2>/dev/null || true
-
-cat > /etc/hosts <<EOF
-127.0.0.1   localhost
-127.0.1.1   ${HOSTNAME_FQDN} ${HOSTNAME_SHORT}
-
-# Controladores de dominio
-EOF
-
-# Adiciona todos os DCs no /etc/hosts
-DC_HOSTNAME="dc-${OM_ACRONYM,,}"
-for DC in $DC_IP_LIST; do
-    echo "$DC    ${DC_HOSTNAME}.${DOMINIO} ${DC_HOSTNAME}" >> /etc/hosts
-done
-
-echo ">>> /etc/hosts configurado"
-
-# ============================================================
-# NTP - sincronizar horario com o servidor
-# ============================================================
-echo ">>> Configurando NTP..."
-if command -v timedatectl &> /dev/null; then
-    timedatectl set-ntp true 2>/dev/null || true
-fi
-
-if [ -n "$NTP_SERVER" ] && [ "$NTP_SERVER" != "" ]; then
-    # Tenta sincronizar imediatamente
-    if command -v ntpdate &> /dev/null; then
-        ntpdate "$NTP_SERVER" 2>/dev/null || true
-    elif command -v chronyc &> /dev/null; then
-        chronyc -a makestep 2>/dev/null || true
-    fi
-
-    # Configura NTP permanente
-    if [ -d /etc/chrony ]; then
-        cat > /etc/chrony/chrony.conf <<EOF
-server $NTP_SERVER iburst
-driftfile /var/lib/chrony/chrony.drift
-makestep 1.0 3
-rtcsync
-EOF
-        systemctl restart chrony 2>/dev/null || true
-    elif [ -f /etc/ntp.conf ]; then
-        cp /etc/ntp.conf /etc/ntp.conf.bak 2>/dev/null || true
-        cat > /etc/ntp.conf <<EOF
-server $NTP_SERVER iburst
-driftfile /var/lib/ntp/ntp.drift
-restrict default kod nomodify notrap nopeer noquery
-restrict 127.0.0.1
-EOF
-        systemctl restart ntp 2>/dev/null || true
-    fi
-    echo ">>> NTP configurado: $NTP_SERVER"
-else
-    echo ">>> NTP_SERVER nao definido, usando padrao do sistema"
-fi
-
-echo ">>> [01] DNS, NTP e resolucao de nomes configurados!"
-echo "============================================================"
-',
-    TRUE,
-    TRUE,
-    1,  -- execution_order (DNS agora vem PRIMEIRO, antes dos repositories)
-    1,
-    NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
-    name = EXCLUDED.name,
-    description = EXCLUDED.description,
-    content = EXCLUDED.content,
-    execution_order = EXCLUDED.execution_order,
-    version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
-
--- ============================================================================
--- Instalacao de Pacotes (ordem 3)
+-- Instalacao de Pacotes (ordem 3) - core_packages.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Instalacao de Pacotes',
     'core_packages.sh',
-    'Instala TODOS os pacotes necessarios (sistema, OCS, CUPS, VNC, Conky, Java, Apps)',
-'#!/bin/bash
+    'Instala TODOS os pacotes necessarios (sistema, OCS, CUPS, VNC, Conky, Java, etc).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_packages.sh
 # SeederLinux Lite - Instalar pacotes essenciais
@@ -734,29 +741,31 @@ fi
 
 echo ">>> [03] Pacotes essenciais instalados!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    3,  -- execution_order
+    3,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Ingresso em Dominio AD (ordem 4)
+-- Ingresso em Dominio AD (ordem 4) - core_domain.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Ingresso em Dominio AD',
     'core_domain.sh',
-    'Ingressa a estacao no Active Directory (SSSD/Winbind com fallback)',
-'#!/bin/bash
+    'Ingressa a estacao no Active Directory (SSSD/Winbind com fallback).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_domain.sh
 # SeederLinux Lite - Ingresso no AD (SSSD/Winbind com fallback)
@@ -1184,29 +1193,31 @@ fi
 
 echo ">>> [04] Ingresso no AD concluido!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    4,  -- execution_order
+    4,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Configuracao de Navegador (ordem 5)
+-- Configuracao de Navegador (ordem 5) - core_browser.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Configuracao de Navegador',
     'core_browser.sh',
-    'Configura Firefox ESR (homepage, proxy, bookmarks) sem apt-get',
-    '#!/bin/bash
+    'Configura Firefox ESR e Chrome (homepage, proxy, bookmarks) via politicas corporativas.',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_browser.sh
 # SeederLinux Lite - Politicas Firefox/Chrome
@@ -1407,29 +1418,31 @@ echo ">>> Politicas do Chromium configuradas"
 
 echo ">>> [06] Politicas de navegadores configuradas!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    5,  -- execution_order
+    5,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Agente de Inventario OCS (ordem 6)
+-- Agente de Inventario OCS (ordem 6) - core_inventory.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Agente de Inventario OCS',
     'core_inventory.sh',
-    'Configura OCS Inventory Agent (sem apt-get)',
-    '#!/bin/bash
+    'Configura OCS Inventory Agent (sem apt-get; pacote instalado em core_packages.sh).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_inventory.sh
 # SeederLinux Lite - OCS Inventory Agent (configuracao apenas)
@@ -1545,29 +1558,31 @@ ocsinventory-agent --server="$OCS_SERVER" --tag="$OCS_TAG" --lazy 2>/dev/null ||
 
 echo ">>> [06] OCS Inventory configurado!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    6,  -- execution_order
+    6,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Configuracao de Impressoras (ordem 7)
+-- Configuracao de Impressoras (ordem 7) - core_printers.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Configuracao de Impressoras',
     'core_printers.sh',
-    'Configura CUPS e impressoras via servidor remoto (sem apt-get)',
-    '#!/bin/bash
+    'Configura CUPS e impressoras via servidor remoto.',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_printers.sh
 # SeederLinux Lite - CUPS e impressoras (configuracao apenas)
@@ -1686,7 +1701,7 @@ else
     echo ">>> Nenhuma impressora listada. Usando descoberta automatica."
     # Descoberta automatica via servidor remoto
     lpinfo -h "$PRINT_SERVER" -v 2>/dev/null | grep ipp | while read -r line; do
-        PRINTER_URI=$(echo "$line" | awk ''{print $2}'')
+        PRINTER_URI=$(echo "$line" | awk '{print $2}')
         PRINTER_NAME=$(basename "$PRINTER_URI")
         echo ">>> Impressora encontrada: $PRINTER_NAME"
         lpadmin -p "$PRINTER_NAME" -E -v "$PRINTER_URI" -m everywhere 2>/dev/null || true
@@ -1710,29 +1725,31 @@ systemctl restart cups
 
 echo ">>> [07] CUPS e impressoras configurados!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    7,  -- execution_order
+    7,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Configuracao VNC (ordem 8)
+-- Configuracao VNC (ordem 8) - core_vnc.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Configuracao VNC',
     'core_vnc.sh',
-    'Configura x11vnc para acesso remoto (sem apt-get)',
-    '#!/bin/bash
+    'Configura x11vnc para acesso remoto assistido.',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_vnc.sh
 # SeederLinux Lite - x11vnc (configuracao apenas)
@@ -1871,29 +1888,31 @@ systemctl start x11vnc.service 2>/dev/null || {
 
 echo ">>> [08] x11vnc configurado!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    8,  -- execution_order
+    8,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Configuracao Conky (ordem 9)
+-- Configuracao de Conky (ordem 9) - core_conky.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
-    'Configuracao Conky',
+    'Configuracao de Conky',
     'core_conky.sh',
-    'Configura Conky com perfil personalizavel (sem apt-get)',
-    '#!/bin/bash
+    'Configura o Conky (monitor de sistema no desktop) com perfil dinamico via JSON.',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_conky.sh
 # SeederLinux Lite - Conky (configuracao apenas)
@@ -1914,7 +1933,7 @@ echo "============================================================"
 # Variaveis
 # ============================================================
 CONKY_PROFILE="{{CONKY_PROFILE}}"
-CONKY_CONFIG=''{{CONKY_CONFIG}}''
+CONKY_CONFIG='{{CONKY_CONFIG}}'
 DESKTOP_ENV="{{DESKTOP_ENV}}"
 OM_ACRONYM="{{OM_ACRONYM}}"
 OM_NAME="{{OM_NAME}}"
@@ -2054,28 +2073,28 @@ cat > /etc/seederlinux/conky/conky.conf <<EOF
 -- Perfil: ${CONKY_PROFILE:-default}
 
 conky.config = {
-    alignment = ''${CFG_POSITION}'',
+    alignment = '${CFG_POSITION}',
     background = false,
     border_width = 1,
     cpu_avg_samples = 2,
-    default_color = ''${COLOR_TEXT_LUA}'',
+    default_color = '${COLOR_TEXT_LUA}',
     double_buffer = true,
     draw_borders = false,
     draw_graph_borders = true,
-    font = ''DejaVu Sans Mono:size=${CFG_FONT_SIZE}'',
+    font = 'DejaVu Sans Mono:size=${CFG_FONT_SIZE}',
     gap_x = ${CFG_GAP_X},
     gap_y = ${CFG_GAP_Y},
     minimum_width = 200,
     net_avg_samples = 2,
     no_buffers = true,
     own_window = true,
-    own_window_class = ''Conky'',
-    own_window_type = ''desktop'',
+    own_window_class = 'Conky',
+    own_window_type = 'desktop',
     own_window_argb_visual = true,
     own_window_argb_value = ${OWN_ARGB_VALUE},
     own_window_transparent = ${OWN_TRANSPARENT},
-    own_window_colour = ''${COLOR_BG_LUA}'',
-    own_window_hints = ''undecorated,below,sticky,skip_taskbar,skip_pager'',
+    own_window_colour = '${COLOR_BG_LUA}',
+    own_window_hints = 'undecorated,below,sticky,skip_taskbar,skip_pager',
     update_interval = ${CFG_UPDATE_INTERVAL},
     use_xft = true,
 }
@@ -2089,7 +2108,7 @@ EOF
 # Criar script de inicializacao do Conky
 # ============================================================
 echo ">>> Criando script de inicializacao..."
-cat > /usr/local/bin/seederlinux-conky <<''SCRIPT''
+cat > /usr/local/bin/seederlinux-conky <<'SCRIPT'
 #!/bin/bash
 CONKY_CONF="/etc/seederlinux/conky/conky.conf"
 sleep 5
@@ -2136,29 +2155,31 @@ esac
 
 echo ">>> [09] Conky configurado!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    9,  -- execution_order
+    9,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Instalacao de Aplicativos (ordem 10)
+-- Instalacao de Aplicacoes Extras (ordem 10) - core_apps.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
-    'Instalacao de Aplicativos',
+    'Instalacao de Aplicacoes Extras',
     'core_apps.sh',
-    'Instala Chrome e OnlyOffice via .deb/wget (sem apt-get)',
-    '#!/bin/bash
+    'Instala aplicacoes extras (OnlyOffice, Chrome, etc).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_apps.sh
 # SeederLinux Lite - OnlyOffice, Chrome, Firefox ESR
@@ -2178,20 +2199,24 @@ echo "============================================================"
 # ============================================================
 # Variáveis
 # ============================================================
-INSTALL_APPS="{{INSTALL_APPS}}"
+INSTALL_ONLYOFFICE="{{INSTALL_ONLYOFFICE}}"
+INSTALL_CHROME="{{INSTALL_CHROME}}"
+INSTALL_CHROMIUM="{{INSTALL_CHROMIUM}}"
 BASE_URL="{{BASE_URL}}"
 PROXY_MODE="{{PROXY_MODE}}"
 PROXY_HTTP="{{PROXY_HTTP}}"
 PROXY_PORTA="{{PROXY_PORTA}}"
 
-echo ">>> Instalar apps: $INSTALL_APPS"
+echo ">>> Instalar OnlyOffice: $INSTALL_ONLYOFFICE"
+echo ">>> Instalar Chrome: $INSTALL_CHROME"
+echo ">>> Instalar Chromium: $INSTALL_CHROMIUM"
 
 # ============================================================
-# Verificar se a instalacao esta habilitada
+# Verificar se pelo menos um toggle esta ativo
 # ============================================================
-if [ "$INSTALL_APPS" != "true" ]; then
+if [ "$INSTALL_ONLYOFFICE" != "true" ] && [ "$INSTALL_CHROME" != "true" ] && [ "$INSTALL_CHROMIUM" != "true" ]; then
     echo ">>> Instalacao de apps desativada. Pulando."
-    echo ">>> [11] Aplicativos nao instalados (desativado)."
+    echo ">>> [10] Aplicativos nao instalados (desativado)."
     echo "============================================================"
     exit 0
 fi
@@ -2207,28 +2232,45 @@ fi
 # ============================================================
 # Google Chrome (instalado via .deb/wget, nao via apt-get)
 # ============================================================
-echo ">>> Instalando Google Chrome..."
-CHROME_DEB="/tmp/google-chrome-stable.deb"
+if [ "$INSTALL_CHROME" = "true" ]; then
+    echo ">>> Instalando Google Chrome..."
+    CHROME_DEB="/tmp/google-chrome-stable.deb"
 
-# Baixar Chrome
-if wget -q -O "$CHROME_DEB" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"; then
-    apt-get install -y "$CHROME_DEB" || {
-        echo ">>> AVISO: Falha ao instalar Google Chrome. Tentando dependencias..."
-        apt-get install -y -f
+    # Baixar Chrome
+    if wget -q -O "$CHROME_DEB" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"; then
         apt-get install -y "$CHROME_DEB" || {
-            echo ">>> AVISO: Google Chrome nao instalado."
+            echo ">>> AVISO: Falha ao instalar Google Chrome. Tentando dependencias..."
+            apt-get install -y -f
+            apt-get install -y "$CHROME_DEB" || {
+                echo ">>> AVISO: Google Chrome nao instalado."
+            }
         }
-    }
-    rm -f "$CHROME_DEB"
+        rm -f "$CHROME_DEB"
+    else
+        echo ">>> AVISO: Nao foi possivel baixar Google Chrome."
+        echo ">>> Verifique conectividade e configuracao de proxy."
+    fi
 else
-    echo ">>> AVISO: Nao foi possivel baixar Google Chrome."
-    echo ">>> Verifique conectividade e configuracao de proxy."
+    echo ">>> Google Chrome desativado (INSTALL_CHROME=false). Pulando."
+fi
+
+# ============================================================
+# Chromium (via apt-get)
+# ============================================================
+if [ "$INSTALL_CHROMIUM" = "true" ]; then
+    echo ">>> Instalando Chromium..."
+    apt-get install -y chromium 2>/dev/null || apt-get install -y chromium-browser 2>/dev/null || {
+        echo ">>> AVISO: Nao foi possivel instalar Chromium."
+    }
+else
+    echo ">>> Chromium desativado (INSTALL_CHROMIUM=false). Pulando."
 fi
 
 # ============================================================
 # OnlyOffice Desktop Editors
 # ============================================================
-echo ">>> Instalando OnlyOffice Desktop Editors..."
+if [ "$INSTALL_ONLYOFFICE" = "true" ]; then
+    echo ">>> Instalando OnlyOffice Desktop Editors..."
 
 # Metodo 1: Via repositorio APT oficial
 ONLYOFFICE_KEY="/tmp/onlyoffice-key.asc"
@@ -2265,8 +2307,11 @@ else
     echo ">>> Tentando instalar via repositorio Debian..."
 
     apt-get install -y onlyoffice-desktopeditors 2>/dev/null || {
-        echo ">>> AVISO: OnlyOffice nao disponivel. Instalacao ignorada."
-    }
+            echo ">>> AVISO: OnlyOffice nao disponivel. Instalacao ignorada."
+        }
+    fi
+else
+    echo ">>> OnlyOffice desativado (INSTALL_ONLYOFFICE=false). Pulando."
 fi
 
 # ============================================================
@@ -2279,29 +2324,31 @@ command -v onlyoffice-desktopeditors &> /dev/null && echo ">>> OnlyOffice: OK" |
 
 echo ">>> [10] Aplicativos instalados!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    10,  -- execution_order
+    10,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Sistemas Legados (ordem 11)
+-- Suporte a Sistemas Legados (ordem 11) - core_legados.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
-    'Sistemas Legados',
+    'Suporte a Sistemas Legados',
     'core_legados.sh',
-    'Configura Java 8 e/ou Firefox 52.7 ESR (toggles separados)',
-    '#!/bin/bash
+    'Instala Java 8 e Firefox 52 ESR para compatibilidade com sistemas legados.',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_legados.sh
 # SeederLinux Lite - Java 8, Firefox 52.7 ESR (sistemas legados)
@@ -2330,9 +2377,11 @@ BASE_URL="{{BASE_URL}}"
 PROXY_MODE="{{PROXY_MODE}}"
 PROXY_HTTP="{{PROXY_HTTP}}"
 PROXY_PORTA="{{PROXY_PORTA}}"
+JAVA_EXCEPTIONS="{{JAVA_EXCEPTIONS}}"
 
 echo ">>> Instalar Java 8: $INSTALL_JAVA8"
 echo ">>> Instalar Firefox 52.7: $INSTALL_FIREFOX52"
+echo ">>> Excecoes Java: ${JAVA_EXCEPTIONS:-nenhuma}"
 
 # ============================================================
 # Verificar se pelo menos um toggle esta ativo
@@ -2378,6 +2427,109 @@ if [ "$INSTALL_JAVA8" = "true" ]; then
         else
             echo ">>> AVISO: Nao foi possivel obter chave do repositorio Java 8."
         fi
+    fi
+
+    # Configurar excecoes Java (deployment.properties) se fornecidas
+    if [ -n "$JAVA_EXCEPTIONS" ] && [ "$JAVA_EXCEPTIONS" != "" ]; then
+        echo ">>> Configurando excecoes Java..."
+        DEPLOY_DIR="/usr/lib/jvm/.deployment"
+        mkdir -p "$DEPLOY_DIR"
+        DEPLOY_FILE="$DEPLOY_DIR/deployment.properties"
+        echo "# Excecoes Java - SeederLinux" > "$DEPLOY_FILE"
+        echo "deployment.security.level=MEDIUM" >> "$DEPLOY_FILE"
+        # Processar cada URL (uma por linha ou separada por virgula)
+        IFS=
+else
+    echo ">>> Java 8 desativado (INSTALL_JAVA8=false). Pulando."
+fi
+
+# ============================================================
+# Firefox 52.7 ESR (para applets Java) - apenas se INSTALL_FIREFOX52=true
+# ============================================================
+if [ "$INSTALL_FIREFOX52" = "true" ]; then
+    echo ">>> Instalando Firefox 52.7 ESR..."
+
+    FF_LEGADO_DIR="/opt/firefox-legado"
+    FF_LEGADO_TARBALL="/tmp/firefox-52.7-esr.tar.bz2"
+    FF_LEGADO_URL="${BASE_URL}/downloads/firefox-52.7.3esr.tar.bz2"
+
+    mkdir -p /opt
+
+    # Tentar baixar do repositorio interno
+    if wget -q -O "$FF_LEGADO_TARBALL" "$FF_LEGADO_URL" 2>/dev/null; then
+        echo ">>> Firefox 52.7 baixado do repositorio interno"
+        tar xjf "$FF_LEGADO_TARBALL" -C /opt/
+        mv /opt/firefox "$FF_LEGADO_DIR" 2>/dev/null || true
+        rm -f "$FF_LEGADO_TARBALL"
+    else
+        echo ">>> AVISO: Nao foi possivel baixar Firefox 52.7 do repositorio interno."
+        echo ">>> Tentando download da Mozilla..."
+
+        FF_MOZILLA_URL="https://ftp.mozilla.org/pub/firefox/releases/52.7.3esr/linux-x86_64/en-US/firefox-52.7.3esr.tar.bz2"
+        if wget -q -O "$FF_LEGADO_TARBALL" "$FF_MOZILLA_URL" 2>/dev/null; then
+            tar xjf "$FF_LEGADO_TARBALL" -C /opt/
+            mv /opt/firefox "$FF_LEGADO_DIR" 2>/dev/null || true
+            rm -f "$FF_LEGADO_TARBALL"
+        else
+            echo ">>> AVISO: Nao foi possivel baixar Firefox 52.7."
+        fi
+    fi
+
+    # Criar link simbolico
+    if [ -d "$FF_LEGADO_DIR" ]; then
+        ln -sf "${FF_LEGADO_DIR}/firefox" /usr/local/bin/firefox-legado
+        echo ">>> Firefox 52.7 ESR instalado em: $FF_LEGADO_DIR"
+
+        # Criar entrada de desktop
+        mkdir -p /usr/share/applications
+        cat > /usr/share/applications/firefox-legado.desktop <<EOF
+[Desktop Entry]
+Version=1.0
+Name=Firefox 52.7 ESR (Legado)
+Comment=Navegador Firefox 52.7 ESR para sistemas legados
+Exec=${FF_LEGADO_DIR}/firefox
+Icon=${FF_LEGADO_DIR}/browser/icons/mozicon128.png
+Terminal=false
+Type=Application
+Categories=Network;WebBrowser;
+EOF
+        echo ">>> Entrada de desktop criada"
+    else
+        echo ">>> AVISO: Firefox 52.7 ESR nao instalado."
+    fi
+
+    # Configurar plugin Java para Firefox legado
+    echo ">>> Configurando plugin Java para Firefox legado..."
+    if [ -d "$FF_LEGADO_DIR" ] && command -v java &> /dev/null; then
+        JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+        PLUGIN_DIR="${FF_LEGADO_DIR}/browser/plugins"
+        mkdir -p "$PLUGIN_DIR"
+
+        # Localizar libnpjp2.so
+        find "$JAVA_HOME" -name "libnpjp2.so" -exec ln -sf {} "$PLUGIN_DIR/libnpjp2.so" \; 2>/dev/null || {
+            echo ">>> AVISO: Plugin Java (libnpjp2.so) nao encontrado."
+        }
+        echo ">>> Plugin Java configurado"
+    fi
+else
+    echo ">>> Firefox 52.7 desativado (INSTALL_FIREFOX52=false). Pulando."
+fi
+
+echo ">>> [11] Sistemas legados configurados!"
+echo "============================================================"
+\n,' read -ra EXC_URLS <<< "$JAVA_EXCEPTIONS"
+        IDX=0
+        for EXC_URL in "${EXC_URLS[@]}"; do
+            EXC_URL=$(echo "$EXC_URL" | xargs)
+            if [ -n "$EXC_URL" ] && [ "$EXC_URL" != "" ]; then
+                echo "deployment.security.sandbox.awtwarningwindow=false" >> "$DEPLOY_FILE"
+                echo "# Excecao $IDX: $EXC_URL" >> "$DEPLOY_FILE"
+                # Adicionar a lista de excecoes
+                echo "javaws.allow.0=$EXC_URL" >> "$DEPLOY_FILE"
+                IDX=$((IDX+1))
+            fi
+        done
+        echo ">>> Excecoes Java configuradas ($IDX URLs)"
     fi
 
     # Verificar Java 8
@@ -2465,29 +2617,31 @@ fi
 
 echo ">>> [11] Sistemas legados configurados!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    11,  -- execution_order
+    11,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Configuracao Persistente (ordem 12)
+-- Configuracoes Adicionais (ordem 12) - core_config.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
-    'Configuracao Persistente',
+    'Configuracoes Adicionais',
     'core_config.sh',
-    'Aplica configuracoes persistentes do sistema',
-'#!/bin/bash
+    'Configuracoes diversas do sistema (sysctl, limits, etc).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_config.sh
 # SeederLinux Lite - Arquivo de Configuracao Persistente
@@ -2526,7 +2680,7 @@ CONFIG_FILE="/etc/seederlinux/config.env"
 cat > "$CONFIG_FILE" <<EOF
 # SeederLinux Lite - Configuracao Persistente
 # NAO EDITAR MANUALMENTE - gerado pelo core_config.sh
-# Gerado em: $(date ''+%Y-%m-%d %H:%M:%S'')
+# Gerado em: $(date '+%Y-%m-%d %H:%M:%S')
 
 # Dominio e Autenticacao
 DOMINIO="{{DOMINIO}}"
@@ -2610,7 +2764,7 @@ CERTIFICATE_AUTO_INSTALL="{{CERTIFICATE_AUTO_INSTALL}}"
 
 # Conky
 CONKY_PROFILE="{{CONKY_PROFILE}}"
-CONKY_CONFIG=''{{CONKY_CONFIG}}''
+CONKY_CONFIG='{{CONKY_CONFIG}}'
 
 # Servidor SeederLinux (para o agente Python)
 SEEDER_SERVER="{{SEEDER_SERVER}}"
@@ -2621,29 +2775,31 @@ chmod 644 "$CONFIG_FILE"
 echo ">>> Configuracao persistente gravada em $CONFIG_FILE"
 echo ">>> [13.5] Arquivo de configuracao criado!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    12,  -- execution_order
+    12,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Branding e Identidade Visual (ordem 13)
+-- Identidade Visual (Branding) (ordem 13) - core_branding.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
-    'Branding e Identidade Visual',
+    'Identidade Visual (Branding)',
     'core_branding.sh',
-    'Aplica wallpaper, logo e identidade visual da OM',
-    '#!/bin/bash
+    'Aplica wallpaper, logo, tema GTK e branding da OM.',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_branding.sh
 # SeederLinux Lite - Wallpaper, logo, tema (varia por DE)
@@ -2814,15 +2970,15 @@ case "$DESKTOP_ENV" in
         mkdir -p /etc/skel/.config
         cat > /etc/skel/.config/cinnamon-settings.conf <<EOF
 [org.cinnamon.desktop.background]
-picture-uri=''file:///usr/share/backgrounds/seederlinux/wallpaper.jpg''
-picture-options=''zoom''
+picture-uri='file:///usr/share/backgrounds/seederlinux/wallpaper.jpg'
+picture-options='zoom'
 
 [org.cinnamon.desktop.interface]
-gtk-theme=''${THEME}''
-icon-theme=''Adwaita''
+gtk-theme='${THEME}'
+icon-theme='Adwaita'
 
 [org.cinnamon.theme]
-name=''${THEME}''
+name='${THEME}'
 EOF
         ;;
 
@@ -2831,12 +2987,12 @@ EOF
         mkdir -p /etc/skel/.config
         cat > /etc/skel/.config/mate-background.conf <<EOF
 [org.mate.desktop.background]
-picture-filename=''/usr/share/backgrounds/seederlinux/wallpaper.jpg''
-picture-options=''zoom''
+picture-filename='/usr/share/backgrounds/seederlinux/wallpaper.jpg'
+picture-options='zoom'
 
 [org.mate.desktop.interface]
-gtk-theme=''${THEME}''
-icon-theme=''Adwaita''
+gtk-theme='${THEME}'
+icon-theme='Adwaita'
 EOF
         ;;
 
@@ -2845,16 +3001,16 @@ EOF
         mkdir -p /etc/dconf/db/local.d
         cat > /etc/dconf/db/local.d/seederlinux-branding <<EOF
 [org/gnome/desktop/background]
-picture-uri=''file:///usr/share/backgrounds/seederlinux/wallpaper.jpg''
-picture-uri-dark=''file:///usr/share/backgrounds/seederlinux/wallpaper.jpg''
-picture-options=''zoom''
+picture-uri='file:///usr/share/backgrounds/seederlinux/wallpaper.jpg'
+picture-uri-dark='file:///usr/share/backgrounds/seederlinux/wallpaper.jpg'
+picture-options='zoom'
 
 [org/gnome/desktop/interface]
-gtk-theme=''${THEME}''
-icon-theme=''Adwaita''
+gtk-theme='${THEME}'
+icon-theme='Adwaita'
 
 [org/gnome/login-screen]
-logo=''/usr/share/pixmaps/seederlinux-logo.png''
+logo='/usr/share/pixmaps/seederlinux-logo.png'
 EOF
         dconf update 2>/dev/null || true
         ;;
@@ -2931,8 +3087,8 @@ EOF
             mkdir -p /etc/dconf/db/gdm.d
             cat > /etc/dconf/db/gdm.d/01-seederlinux-background <<EOF
 [org/gnome/desktop/background]
-picture-uri=''file:///usr/share/backgrounds/seederlinux/wallpaper-login.jpg''
-picture-options=''zoom''
+picture-uri='file:///usr/share/backgrounds/seederlinux/wallpaper-login.jpg'
+picture-options='zoom'
 EOF
             dconf update 2>/dev/null || true
         fi
@@ -2952,29 +3108,31 @@ esac
 
 echo ">>> [13] Identidade visual aplicada!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    13,  -- execution_order
+    13,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Script de Logon (ordem 14)
+-- Script de Logon Persistente (ordem 14) - core_logon.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
-    'Script de Logon',
+    'Script de Logon Persistente',
     'core_logon.sh',
-    'Executa acoes no logon do usuario (mapeamento de unidades, scripts)',
-    '#!/bin/bash
+    'Script executado a cada logon de usuario (multi-DE).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_logon.sh
 # SeederLinux Lite - Logon multi-DE
@@ -3037,7 +3195,7 @@ fi
 # ============================================================
 echo ">>> Criando script permanente: /usr/local/bin/seederlinux-logon"
 
-cat > /usr/local/bin/seederlinux-logon <<''PERMSCRIPT''
+cat > /usr/local/bin/seederlinux-logon <<'PERMSCRIPT'
 #!/bin/bash
 # seederlinux-logon - Script permanente de logon do SeederLinux (multi-DE)
 # Executado pelo display manager (LightDM/GDM3/SDDM) a cada login.
@@ -3273,35 +3431,35 @@ WALLPAPER_PATH="/usr/share/backgrounds/seederlinux/wallpaper.jpg"
 case "$DESKTOP_ENV" in
     cinnamon)
         gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
-        gsettings set org.cinnamon.desktop.background picture-options ''zoom'' 2>/dev/null || true
+        gsettings set org.cinnamon.desktop.background picture-options 'zoom' 2>/dev/null || true
         gsettings set org.cinnamon.desktop.interface gtk-theme "${THEME:-Adwaita}" 2>/dev/null || true
-        gsettings set org.cinnamon.desktop.interface icon-theme ''Adwaita'' 2>/dev/null || true
+        gsettings set org.cinnamon.desktop.interface icon-theme 'Adwaita' 2>/dev/null || true
         gsettings set org.cinnamon.sounds event-sounds false 2>/dev/null || true
         ;;
     mate)
         gsettings set org.mate.background picture-filename "$WALLPAPER_PATH" 2>/dev/null || true
-        gsettings set org.mate.background picture-options ''zoom'' 2>/dev/null || true
+        gsettings set org.mate.background picture-options 'zoom' 2>/dev/null || true
         gsettings set org.mate.interface gtk-theme "${THEME:-Adwaita}" 2>/dev/null || true
-        gsettings set org.mate.interface icon-theme ''Adwaita'' 2>/dev/null || true
-        gsettings set org.mate.pluma style-scheme ''oblivion'' 2>/dev/null || true
+        gsettings set org.mate.interface icon-theme 'Adwaita' 2>/dev/null || true
+        gsettings set org.mate.pluma style-scheme 'oblivion' 2>/dev/null || true
         gsettings set org.mate.sound event-sounds false 2>/dev/null || true
         ;;
     gnome)
         gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
-        gsettings set org.gnome.desktop.background picture-options ''zoom'' 2>/dev/null || true
+        gsettings set org.gnome.desktop.background picture-options 'zoom' 2>/dev/null || true
         gsettings set org.gnome.desktop.interface gtk-theme "${THEME:-Adwaita}" 2>/dev/null || true
-        gsettings set org.gnome.desktop.interface icon-theme ''Adwaita'' 2>/dev/null || true
+        gsettings set org.gnome.desktop.interface icon-theme 'Adwaita' 2>/dev/null || true
         gsettings set org.gnome.desktop.interface enable-animations false 2>/dev/null || true
         ;;
     xfce)
         xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s "$WALLPAPER_PATH" 2>/dev/null || true
         xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/image-style -s 5 2>/dev/null || true
         xfconf-query -c xsettings -p /Net/ThemeName -s "${THEME:-Adwaita}" 2>/dev/null || true
-        xfconf-query -c xsettings -p /Net/IconThemeName -s ''Adwaita'' 2>/dev/null || true
+        xfconf-query -c xsettings -p /Net/IconThemeName -s 'Adwaita' 2>/dev/null || true
         ;;
     kde)
         kwriteconfig5 --file plasma-org.kde.plasma.desktop-appletsrc \
-            --group ''Containments][1][Wallpaper][org.kde.image][General'' \
+            --group 'Containments][1][Wallpaper][org.kde.image][General' \
             --key Image "file://$WALLPAPER_PATH" 2>/dev/null || true
         kwriteconfig5 --file kdeglobals --group General --key ColorScheme "${THEME:-Adwaita}" 2>/dev/null || true
         kwriteconfig5 --file kdeglobals --group KDE --key widgetStyle "${THEME:-Adwaita}" 2>/dev/null || true
@@ -3400,29 +3558,31 @@ chown -R "$USERNAME:$(id -gn)" "$USER_HOME" 2>/dev/null || true
 
 echo ">>> [14] Logon concluido!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    14,  -- execution_order
+    14,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Script de Logoff (ordem 15)
+-- Script de Logoff Persistente (ordem 15) - core_logoff.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
-    'Script de Logoff',
+    'Script de Logoff Persistente',
     'core_logoff.sh',
-    'Executa acoes no logoff do usuario (limpeza, desmontagem)',
-    '#!/bin/bash
+    'Script executado a cada logoff de usuario.',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_logoff.sh
 # SeederLinux Lite - Logoff multi-DE
@@ -3475,7 +3635,7 @@ fi
 # ============================================================
 echo ">>> Criando script permanente: /usr/local/bin/seederlinux-logoff"
 
-cat > /usr/local/bin/seederlinux-logoff <<''PERMSCRIPT''
+cat > /usr/local/bin/seederlinux-logoff <<'PERMSCRIPT'
 #!/bin/bash
 # seederlinux-logoff - Script permanente de logoff do SeederLinux (multi-DE)
 # Executado pelo display manager (LightDM/GDM3/SDDM) a cada logoff.
@@ -3622,29 +3782,31 @@ killall -u "$USERNAME" x11vnc 2>/dev/null || true
 
 echo ">>> [15] Logoff concluido!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    15,  -- execution_order
+    15,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Sessao LightDM (ordem 16)
+-- Sessao LightDM (ordem 16) - core_session_lightdm.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Sessao LightDM',
     'core_session_lightdm.sh',
-    'Configura sessao LightDM (auto-detecta DM)',
-    '#!/bin/bash
+    'Configura LightDM como display manager (autoselecao via DISPLAY_MANAGER=lightdm).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_session_lightdm.sh
 # SeederLinux Lite - LightDM: logon/logoff (MATE, Cinnamon, XFCE, LXDE)
@@ -3764,7 +3926,7 @@ echo ">>> Greeter configurado"
 # ============================================================
 echo ">>> Configurando Xsession..."
 if [ ! -f /etc/lightdm/Xsession ]; then
-    cat > /etc/lightdm/Xsession <<''XSESSION''
+    cat > /etc/lightdm/Xsession <<'XSESSION'
 #!/bin/bash
 # Xsession do SeederLinux para LightDM
 exec /etc/X11/Xsession "$@"
@@ -3801,29 +3963,31 @@ systemctl restart lightdm 2>/dev/null || {
 
 echo ">>> [14a] LightDM configurado!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    16,  -- execution_order
+    16,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Sessao GDM3 (ordem 16)
+-- Sessao GDM3 (ordem 16) - core_session_gdm3.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Sessao GDM3',
     'core_session_gdm3.sh',
-    'Configura sessao GDM3 (auto-detecta DM)',
-    '#!/bin/bash
+    'Configura GDM3 como display manager (autoselecao via DISPLAY_MANAGER=gdm3).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_session_gdm3.sh
 # SeederLinux Lite - GDM3: logon/logoff (GNOME)
@@ -3926,7 +4090,7 @@ echo ">>> Configurando scripts de logon/logoff no GDM3..."
 PRESESSION_FILE="/etc/gdm3/PreSession/Default"
 mkdir -p /etc/gdm3/PreSession
 
-cat > "$PRESESSION_FILE" <<''PRESESSION''
+cat > "$PRESESSION_FILE" <<'PRESESSION'
 #!/bin/bash
 # PreSession do GDM3 - SeederLinux
 # Executa o script de logon do SeederLinux
@@ -3942,7 +4106,7 @@ chmod +x "$PRESESSION_FILE"
 POSTSESSION_FILE="/etc/gdm3/PostSession/Default"
 mkdir -p /etc/gdm3/PostSession
 
-cat > "$POSTSESSION_FILE" <<''POSTSESSION''
+cat > "$POSTSESSION_FILE" <<'POSTSESSION'
 #!/bin/bash
 # PostSession do GDM3 - SeederLinux
 # Executa o script de logoff do SeederLinux
@@ -3985,29 +4149,31 @@ systemctl restart gdm3 2>/dev/null || {
 
 echo ">>> [14b] GDM3 configurado!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    16,  -- execution_order
+    16,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Sessao SDDM (ordem 16)
+-- Sessao SDDM (ordem 16) - core_session_sddm.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Sessao SDDM',
     'core_session_sddm.sh',
-    'Configura sessao SDDM (auto-detecta DM)',
-    '#!/bin/bash
+    'Configura SDDM como display manager (autoselecao via DISPLAY_MANAGER=sddm).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_session_sddm.sh
 # SeederLinux Lite - SDDM: logon/logoff (KDE)
@@ -4114,7 +4280,7 @@ echo ">>> Configurando scripts de logon/logoff no SDDM..."
 XSETUP_FILE="/usr/share/sddm/scripts/Xsetup"
 mkdir -p /usr/share/sddm/scripts
 
-cat > "$XSETUP_FILE" <<''XSETUP''
+cat > "$XSETUP_FILE" <<'XSETUP'
 #!/bin/bash
 # Xsetup do SDDM - SeederLinux
 # Executa o script de logon do SeederLinux
@@ -4129,7 +4295,7 @@ chmod +x "$XSETUP_FILE"
 # Xstop - executado apos a sessao (logoff)
 XSTOP_FILE="/usr/share/sddm/scripts/Xstop"
 
-cat > "$XSTOP_FILE" <<''XSTOP''
+cat > "$XSTOP_FILE" <<'XSTOP'
 #!/bin/bash
 # Xstop do SDDM - SeederLinux
 # Executa o script de logoff do SeederLinux
@@ -4172,29 +4338,31 @@ systemctl restart sddm 2>/dev/null || {
 
 echo ">>> [14c] SDDM configurado!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    16,  -- execution_order
+    16,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
 
 -- ============================================================================
--- Configuracao de Proxy (ordem 17)
+-- Configuracao de Proxy (ordem 17) - core_proxy.sh
 -- ============================================================================
 INSERT INTO scripts (name, filename, description, content, is_core, is_active, execution_order, version, organization_id)
 VALUES (
     'Configuracao de Proxy',
     'core_proxy.sh',
-    'Configura proxy do sistema (ULTIMO - apos todos os pacotes)',
-    '#!/bin/bash
+    'Configura proxy corporativo no sistema (apt, curl, wget, env).',
+    $SeederScript$#!/bin/bash
 # ============================================================================
 # Core Script: core_proxy.sh
 # SeederLinux Lite - Proxy do sistema
@@ -4237,7 +4405,7 @@ case "$PROXY_MODE" in
         rm -f /etc/apt/apt.conf.d/95seederlinux-proxy 2>/dev/null || true
         # Limpar /etc/environment de entradas de proxy
         if [ -f /etc/environment ]; then
-            sed -i ''/^http_proxy=/d; /^https_proxy=/d; /^ftp_proxy=/d; /^no_proxy=/d; /^HTTP_PROXY=/d; /^HTTPS_PROXY=/d; /^FTP_PROXY=/d; /^NO_PROXY=/d'' /etc/environment || true
+            sed -i '/^http_proxy=/d; /^https_proxy=/d; /^ftp_proxy=/d; /^no_proxy=/d; /^HTTP_PROXY=/d; /^HTTPS_PROXY=/d; /^FTP_PROXY=/d; /^NO_PROXY=/d' /etc/environment || true
         fi
         echo ">>> Configuracoes de proxy removidas"
         ;;
@@ -4262,7 +4430,7 @@ EOF
         # Configurar /etc/environment
         if [ -f /etc/environment ]; then
             # Remover entradas antigas
-            sed -i ''/^http_proxy=/d; /^https_proxy=/d; /^ftp_proxy=/d; /^no_proxy=/d; /^HTTP_PROXY=/d; /^HTTPS_PROXY=/d; /^FTP_PROXY=/d; /^NO_PROXY=/d'' /etc/environment || true
+            sed -i '/^http_proxy=/d; /^https_proxy=/d; /^ftp_proxy=/d; /^no_proxy=/d; /^HTTP_PROXY=/d; /^HTTPS_PROXY=/d; /^FTP_PROXY=/d; /^NO_PROXY=/d' /etc/environment || true
         fi
 
         cat >> /etc/environment <<EOF
@@ -4323,16 +4491,41 @@ esac
 
 echo ">>> [17] Proxy do sistema configurado!"
 echo "============================================================"
-',
+$SeederScript$,
     TRUE,
     TRUE,
-    17,  -- execution_order
+    17,
     1,
     NULL
-) ON CONFLICT (filename) WHERE is_core = TRUE DO UPDATE SET
+) ON CONFLICT (filename) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     content = EXCLUDED.content,
     execution_order = EXCLUDED.execution_order,
     version = EXCLUDED.version,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
+
+
+
+-- ============================================================================
+-- FIM: 19 scripts core inseridos.
+-- Ordem de execucao:
+--   01 core_dns.sh              (configura DNS ANTES de apt-get update)
+--   02 core_repositories.sh     (agora tem DNS resolvendo)
+--   03 core_packages.sh
+--   04 core_domain.sh
+--   05 core_browser.sh
+--   06 core_inventory.sh
+--   07 core_printers.sh
+--   08 core_vnc.sh
+--   09 core_conky.sh
+--   10 core_apps.sh
+--   11 core_legados.sh
+--   12 core_config.sh
+--   13 core_branding.sh
+--   14 core_logon.sh
+--   15 core_logoff.sh
+--   16 core_session_{lightdm|gdm3|sddm}.sh   (bundle mantem apenas 1 conforme DISPLAY_MANAGER)
+--   17 core_proxy.sh
+-- ============================================================================
