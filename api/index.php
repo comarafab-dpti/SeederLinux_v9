@@ -107,6 +107,15 @@ try {
         case 'bundle-by-id':
             handleDownloadBundle($id);
             break;
+        case 'bundles':
+            requireAuth();
+            handleListBundles($orgId);
+            break;
+        case 'bundle-toggle':
+            requireAuth();
+            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            handleToggleBundleActive($input);
+            break;
 
         // Users
         case 'users':
@@ -1399,8 +1408,49 @@ function handlePublicBundles() {
                 o.name as org_name, o.acronym
          FROM deploy_bundles db
          JOIN organizations o ON o.id = db.organization_id
+         WHERE db.is_active = TRUE
          ORDER BY db.generated_at DESC LIMIT 20"
     );
     jsonSuccess($bundles);
+}
+
+function handleListBundles($orgId) {
+    $userOrgId = getUserOrgId();
+    $isAdmin = isAdminGap();
+
+    if ($userOrgId !== null && !$isAdmin && $orgId != $userOrgId) {
+        jsonError('Sem permissao', 403);
+    }
+    if (!$orgId) jsonError('org_id required');
+
+    $bundles = Database::fetchAll(
+        "SELECT id, filename, scripts_count, generated_at, is_active, octet_length(content) as content_size
+         FROM deploy_bundles
+         WHERE organization_id = ?
+         ORDER BY generated_at DESC",
+        [$orgId]
+    );
+    jsonSuccess($bundles);
+}
+
+function handleToggleBundleActive($input) {
+    $bundleId = (int)($input['bundle_id'] ?? 0);
+    if (!$bundleId) jsonError('bundle_id required');
+
+    $userOrgId = getUserOrgId();
+    $isAdmin = isAdminGap();
+
+    $bundle = Database::fetchOne("SELECT id, organization_id, is_active FROM deploy_bundles WHERE id = ?", [$bundleId]);
+    if (!$bundle) jsonError('Bundle nao encontrado', 404);
+
+    if ($userOrgId !== null && !$isAdmin && $bundle['organization_id'] != $userOrgId) {
+        jsonError('Sem permissao', 403);
+    }
+
+    $newStatus = !$bundle['is_active'];
+    Database::execute("UPDATE deploy_bundles SET is_active = ? WHERE id = ?", [$newStatus, $bundleId]);
+
+    log_audit($newStatus ? 'ACTIVATE' : 'DEACTIVATE', 'bundles', $bundleId, []);
+    jsonSuccess(null, $newStatus ? 'Bundle ativado' : 'Bundle desativado');
 }
 

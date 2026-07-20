@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS organizations (
 
 -- Seed: default organization
 INSERT INTO organizations (id, name, acronym, domain, description)
-VALUES (1, 'Comando da Comara', 'COMARA', 'comara.intraer', 'Organizacao padrão do sistema')
+VALUES (1, 'OM Padrao', 'OM', 'om.local', 'Organizacao padrao do sistema')
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -85,15 +85,15 @@ CREATE INDEX IF NOT EXISTS idx_var_defs_type ON variable_definitions(type);
 -- ============================================================================
 INSERT INTO variable_definitions (name, placeholder, description, type, category, is_required, default_value, display_order) VALUES
 -- Domain Configuration
-('DOMINIO', '{{DOMINIO}}', 'Dominio AD completo', 'domain', 'dominio', TRUE, 'comara.intraer', 1),
-('DOMINIO_NETBIOS', '{{DOMINIO_NETBIOS}}', 'Nome NetBIOS do dominio', 'netbios', 'dominio', TRUE, 'COMARA', 2),
-('DC_IP', '{{DC_IP}}', 'IP do Controlador de Dominio', 'ip', 'dominio', TRUE, '10.108.64.51', 3),
-('DC_SECUNDARIO_IP', '{{DC_SECUNDARIO_IP}}', 'IP do Controlador de Dominio secundario', 'ip', 'dominio', FALSE, '', 4),
-('DNS_INTERNET', '{{DNS_INTERNET}}', 'DNS para internet (fallback)', 'ip', 'rede', TRUE, '10.108.64.27', 5),
-('DNS_PRIMARIO', '{{DNS_PRIMARIO}}', 'DNS primario para resolucao de nomes', 'ip', 'rede', TRUE, '10.108.64.51', 6),
-('DNS_SECUNDARIO', '{{DNS_SECUNDARIO}}', 'DNS secundario (fallback)', 'ip', 'rede', FALSE, '10.108.64.27', 7),
-('NTP_SERVER', '{{NTP_SERVER}}', 'Servidor NTP para sincronizacao de horario', 'ip', 'dominio', FALSE, '10.108.64.51', 8),
-('OU_PADRAO', '{{OU_PADRAO}}', 'Unidade Organizacional padrao no AD', 'string', 'dominio', FALSE, 'OU=Estacoes,DC=comara,DC=intraer', 9),
+('DOMINIO', '{{DOMINIO}}', 'Dominio AD completo', 'domain', 'dominio', TRUE, 'om.local', 1),
+('DOMINIO_NETBIOS', '{{DOMINIO_NETBIOS}}', 'Nome NetBIOS do dominio', 'netbios', 'dominio', TRUE, 'OM', 2),
+('DC_IP', '{{DC_IP}}', 'IP do Controlador de Dominio', 'ip', 'dominio', TRUE, '10.0.0.1', 3),
+('DC_SECUNDARIO_IP', '{{DC_SECUNDARIO_IP}}', 'IP do Controlador de Dominio secundario', 'ip', 'dominio', FALSE, '10.0.0.2', 4),
+('DNS_INTERNET', '{{DNS_INTERNET}}', 'DNS para internet (fallback)', 'ip', 'rede', TRUE, '8.8.8.8', 5),
+('DNS_PRIMARIO', '{{DNS_PRIMARIO}}', 'DNS primario para resolucao de nomes', 'ip', 'rede', TRUE, '10.0.0.1', 6),
+('DNS_SECUNDARIO', '{{DNS_SECUNDARIO}}', 'DNS secundario (fallback)', 'ip', 'rede', FALSE, '10.0.0.2', 7),
+('NTP_SERVER', '{{NTP_SERVER}}', 'Servidor NTP para sincronizacao de horario', 'ip', 'dominio', FALSE, 'pool.ntp.org', 8),
+('OU_PADRAO', '{{OU_PADRAO}}', 'Unidade Organizacional padrao no AD', 'string', 'dominio', FALSE, 'OU=Estacoes,DC=om,DC=local', 9),
 ('GRUPO_ADMIN', '{{GRUPO_ADMIN}}', 'Grupo administrador do dominio', 'string', 'dominio', TRUE, 'Domain Admins', 10),
 ('AUTH_METHOD', '{{AUTH_METHOD}}', 'Metodo de autenticacao: sssd, winbind ou both (SSSD com fallback Winbind)', 'select', 'dominio', FALSE, 'sssd', 11),
 ('OFFLINE_AUTH_ENABLED', '{{OFFLINE_AUTH_ENABLED}}', 'Habilitar autenticacao offline', 'boolean', 'dominio', FALSE, 'true', 12),
@@ -101,9 +101,9 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('ADMIN_PASSWORD_B64', '{{ADMIN_PASSWORD_B64}}', 'Senha do administrador do dominio (codificada em base64)', 'password', 'dominio', FALSE, '', 14),
 
 -- Repository
-('BASE_URL', '{{BASE_URL}}', 'URL base do repositorio de scripts (o proprio servidor SeederLinux)', 'url', 'rede', TRUE, 'https://seederlinux.comara.intraer', 20),
+('BASE_URL', '{{BASE_URL}}', 'URL base do repositorio de scripts (o proprio servidor SeederLinux)', 'url', 'rede', TRUE, 'https://seederlinux.om.local', 20),
 ('REPOSITORY_MODE', '{{REPOSITORY_MODE}}', 'Modo de repositorio: PUBLIC, MIRROR, HYBRID, CUSTOM', 'select', 'repositorios', TRUE, 'MIRROR', 21),
-('REPOSITORY_URL', '{{REPOSITORY_URL}}', 'URL do repositorio espelho', 'url', 'repositorios', FALSE, 'https://softwarelivre.comara.intraer', 22),
+('REPOSITORY_URL', '{{REPOSITORY_URL}}', 'URL do repositorio espelho', 'url', 'repositorios', FALSE, '', 22),
 ('REPOSITORY_FALLBACK', '{{REPOSITORY_FALLBACK}}', 'URL de repositorio fallback (internet)', 'url', 'repositorios', FALSE, 'http://deb.debian.org/debian', 23),
 ('REPOSITORY_DEBIAN_ENABLED', '{{REPOSITORY_DEBIAN_ENABLED}}', 'Habilitar mirror para Debian?', 'boolean', 'repositorios', FALSE, 'false', 24),
 ('REPOSITORY_DEBIAN_URL', '{{REPOSITORY_DEBIAN_URL}}', 'URL do mirror Debian (ex: http://mirror.intraer/debian)', 'url', 'repositorios', FALSE, '', 25),
@@ -115,26 +115,26 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('REPOSITORY_ZORIN_URL', '{{REPOSITORY_ZORIN_URL}}', 'URL do mirror Zorin OS (ex: http://mirror.intraer/zorin)', 'url', 'repositorios', FALSE, '', 31),
 
 -- Inventory
-('OCS_SERVER', '{{OCS_SERVER}}', 'Servidor OCS Inventory', 'url', 'inventario', TRUE, 'http://ocs.comara.intraer/ocsinventory', 30),
-('OCS_TAG', '{{OCS_TAG}}', 'Tag OCS da organizacao', 'string', 'inventario', TRUE, 'COMARA-ESTACOES', 31),
+('OCS_SERVER', '{{OCS_SERVER}}', 'Servidor OCS Inventory', 'url', 'inventario', TRUE, '', 30),
+('OCS_TAG', '{{OCS_TAG}}', 'Tag OCS da organizacao', 'string', 'inventario', TRUE, 'OM-ESTACOES', 31),
 ('GLPI_SERVER', '{{GLPI_SERVER}}', 'Servidor GLPI para inventario', 'url', 'inventario', FALSE, '', 32),
 ('INVENTORY_ENABLED', '{{INVENTORY_ENABLED}}', 'Habilitar inventario automatico', 'boolean', 'inventario', FALSE, 'true', 33),
 
 -- Printers
-('PRINT_SERVER', '{{PRINT_SERVER}}', 'Servidor de impressao', 'ip', 'rede', FALSE, '10.108.64.20', 40),
+('PRINT_SERVER', '{{PRINT_SERVER}}', 'Servidor de impressao', 'ip', 'rede', FALSE, '', 40),
 ('DEFAULT_PRINTER', '{{DEFAULT_PRINTER}}', 'Impressora padrao', 'string', 'impressoras', FALSE, '', 41),
 ('PRINTERS', '{{PRINTERS}}', 'Lista de impressoras (adicione uma por vez)', 'tags', 'impressoras', FALSE, '', 42),
 
 -- Proxy
-('PROXY_HTTP', '{{PROXY_HTTP}}', 'Proxy HTTP corporativo', 'ip', 'proxy', FALSE, '10.108.88.4', 50),
-('PROXY_PORTA', '{{PROXY_PORTA}}', 'Porta do proxy', 'port', 'proxy', FALSE, '8080', 51),
-('PROXY_URL', '{{PROXY_URL}}', 'URL completa do proxy', 'url', 'proxy', FALSE, 'http://proxy.comara.intraer:8080', 52),
-('PROXY_MODE', '{{PROXY_MODE}}', 'Modo de proxy: NONE, MANUAL, PAC', 'select', 'navegador', FALSE, 'MANUAL', 53),
+('PROXY_HTTP', '{{PROXY_HTTP}}', 'Proxy HTTP corporativo', 'ip', 'proxy', FALSE, '', 50),
+('PROXY_PORTA', '{{PROXY_PORTA}}', 'Porta do proxy', 'port', 'proxy', FALSE, '', 51),
+('PROXY_URL', '{{PROXY_URL}}', 'URL completa do proxy', 'url', 'proxy', FALSE, '', 52),
+('PROXY_MODE', '{{PROXY_MODE}}', 'Modo de proxy: NONE, MANUAL, PAC', 'select', 'navegador', FALSE, 'NONE', 53),
 ('PAC_URL', '{{PAC_URL}}', 'URL do arquivo PAC (Proxy Auto-Config)', 'url', 'navegador', FALSE, '', 54),
-('NO_PROXY', '{{NO_PROXY}}', 'Lista de excecoes de proxy (adicione uma por vez)', 'tags', 'navegador', FALSE, 'localhost,127.0.0.1,comara.intraer', 55),
+('NO_PROXY', '{{NO_PROXY}}', 'Lista de excecoes de proxy (adicione uma por vez)', 'tags', 'navegador', FALSE, 'localhost,127.0.0.1,om.local', 55),
 
 -- Browser
-('HOMEPAGE', '{{HOMEPAGE}}', 'Pagina inicial do portal', 'url', 'navegador', FALSE, 'www.comara.intraer', 60),
+('HOMEPAGE', '{{HOMEPAGE}}', 'Pagina inicial do portal', 'url', 'navegador', FALSE, 'www.om.local', 60),
 
 -- Security
 ('GRUPO_ADMIN_AD', '{{GRUPO_ADMIN_AD}}', 'Grupo admin no AD para sudo', 'string', 'seguranca', TRUE, 'Dominio\ Admins', 70),
@@ -142,9 +142,9 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('GRUPO_DASTI', '{{GRUPO_DASTI}}', 'Grupo DASTI para sudo', 'string', 'seguranca', FALSE, '_DASTI', 72),
 
 -- Branding / Identidade Visual (Assets)
-('OM_ACRONYM', '{{OM_ACRONYM}}', 'Sigla da Organizacao Militar', 'string', 'branding', FALSE, 'COMARA', 80),
-('OM_NAME', '{{OM_NAME}}', 'Nome completo da Organizacao Militar', 'string', 'branding', FALSE, '', 81),
-('DISPLAY_NAME', '{{DISPLAY_NAME}}', 'Nome de exibicao da OM', 'string', 'branding', FALSE, 'Comando da Comara', 82),
+('OM_ACRONYM', '{{OM_ACRONYM}}', 'Sigla da Organizacao Militar', 'string', 'branding', FALSE, 'OM', 80),
+('OM_NAME', '{{OM_NAME}}', 'Nome completo da Organizacao Militar', 'string', 'branding', FALSE, 'Organizacao Padrao', 81),
+('DISPLAY_NAME', '{{DISPLAY_NAME}}', 'Nome de exibicao da OM', 'string', 'branding', FALSE, 'OM Padrao', 82),
 ('WALLPAPER_URL', '{{WALLPAPER_URL}}', 'URL do wallpaper da area de trabalho', 'image', 'assets', FALSE, '/assets/wallpapers/default.jpg', 83),
 ('WALLPAPER_LOGIN_URL', '{{WALLPAPER_LOGIN_URL}}', 'URL do wallpaper da tela de login', 'image', 'assets', FALSE, '', 84),
 ('LOGO_URL', '{{LOGO_URL}}', 'URL do logo da OM', 'image', 'assets', FALSE, '/assets/logos/default.png', 85),
@@ -157,11 +157,11 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('DESKTOP_ENV', '{{DESKTOP_ENV}}', 'Ambiente grafico: cinnamon, mate, gnome, xfce, kde, lxde (opcional, apenas se INSTALL_DESKTOP=true)', 'select', 'ambiente', FALSE, '', 90),
 ('DISPLAY_MANAGER', '{{DISPLAY_MANAGER}}', 'Gerenciador de sessao: lightdm, gdm3, sddm (opcional, detectado automaticamente se vazio)', 'select', 'ambiente', FALSE, '', 91),
 ('INSTALL_DESKTOP', '{{INSTALL_DESKTOP}}', 'Instalar ambiente grafico? Se false, usa o ja instalado na estacao', 'boolean', 'ambiente', FALSE, 'false', 92),
-('DC_IP_LIST', '{{DC_IP_LIST}}', 'Lista de IPs dos Controladores de Dominio (separados por virgula ou espaco)', 'string', 'dominio', FALSE, '10.108.64.51,10.108.64.52', 93),
+('DC_IP_LIST', '{{DC_IP_LIST}}', 'Lista de IPs dos Controladores de Dominio (separados por virgula ou espaco)', 'string', 'dominio', FALSE, '10.0.0.1,10.0.0.2', 93),
 ('ADMIN_USERNAME', '{{ADMIN_USERNAME}}', 'Nome do usuario administrador do dominio para ingresso no AD', 'string', 'dominio', FALSE, 'Administrator', 94),
 
 -- File Server
-('SERVIDOR_ARQUIVOS', '{{SERVIDOR_ARQUIVOS}}', 'Servidor de arquivos (SMB/NFS)', 'ip', 'arquivos', FALSE, '10.108.64.20', 100),
+('SERVIDOR_ARQUIVOS', '{{SERVIDOR_ARQUIVOS}}', 'Servidor de arquivos (SMB/NFS)', 'ip', 'arquivos', FALSE, '', 100),
 ('COMPARTILHAMENTOS', '{{COMPARTILHAMENTOS}}', 'Lista de compartilhamentos (adicione um por vez)', 'tags', 'arquivos', FALSE, 'publico,usuarios,setores', 101),
 ('MOUNT_BASE', '{{MOUNT_BASE}}', 'Base de montagem para compartilhamentos', 'string', 'arquivos', FALSE, '/mnt/servidor', 102),
 
@@ -185,7 +185,7 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 ('CERTIFICATE_AUTO_INSTALL', '{{CERTIFICATE_AUTO_INSTALL}}', 'Instalar certificados automaticamente', 'boolean', 'certificados', FALSE, 'true', 131),
 
 -- SeederLinux Server
-('SEEDER_SERVER', '{{SEEDER_SERVER}}', 'URL base do servidor SeederLinux para check-in do agente. Configure este FQDN no DNS ou adicione ao /etc/hosts das estacoes.', 'url', 'rede', FALSE, 'https://seederlinux.comara.intraer', 140)
+('SEEDER_SERVER', '{{SEEDER_SERVER}}', 'URL base do servidor SeederLinux para check-in do agente. Configure este FQDN no DNS ou adicione ao /etc/hosts das estacoes.', 'url', 'rede', FALSE, 'https://seederlinux.om.local', 140)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS organization_variables (
 CREATE INDEX IF NOT EXISTS idx_org_vars_org ON organization_variables(organization_id);
 CREATE INDEX IF NOT EXISTS idx_org_vars_var ON organization_variables(variable_id);
 
--- Seed: default values for COMARA (org id=1) for all variables
+-- Seed: default values for OM Padrao (org id=1) for all variables
 INSERT INTO organization_variables (organization_id, variable_id, value)
 SELECT 1, id, COALESCE(default_value, '') FROM variable_definitions
 ON CONFLICT (organization_id, variable_id) DO NOTHING;
@@ -212,8 +212,9 @@ ON CONFLICT (organization_id, variable_id) DO NOTHING;
 -- Seed explicito: garantir presenca de DC_IP_LIST, ADMIN_USERNAME, INSTALL_DESKTOP
 -- para o org 1, mesmo em bases pre-existentes onde estas variaveis foram
 -- adicionadas ao catalogo apos a criacao da organizacao.
+-- ADMIN_USERNAME ja vem com valor default 'Administrator' no catalogo.
 INSERT INTO organization_variables (organization_id, variable_id, value)
-SELECT 1, id, '10.108.64.51,10.108.64.52' FROM variable_definitions WHERE name = 'DC_IP_LIST'
+SELECT 1, id, '10.0.0.1,10.0.0.2' FROM variable_definitions WHERE name = 'DC_IP_LIST'
 ON CONFLICT (organization_id, variable_id) DO NOTHING;
 
 INSERT INTO organization_variables (organization_id, variable_id, value)
@@ -225,7 +226,7 @@ SELECT 1, id, 'false' FROM variable_definitions WHERE name = 'INSTALL_DESKTOP'
 ON CONFLICT (organization_id, variable_id) DO NOTHING;
 
 INSERT INTO organization_variables (organization_id, variable_id, value)
-SELECT 1, id, 'https://seederlinux.comara.intraer' FROM variable_definitions WHERE name = 'SEEDER_SERVER'
+SELECT 1, id, 'https://seederlinux.om.local' FROM variable_definitions WHERE name = 'SEEDER_SERVER'
 ON CONFLICT (organization_id, variable_id) DO NOTHING;
 
 -- ============================================================================
@@ -270,6 +271,7 @@ CREATE TABLE IF NOT EXISTS deploy_bundles (
     content TEXT NOT NULL,
     script_ids TEXT,
     scripts_count INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -472,6 +472,11 @@ async function selectOrganization(orgId) {
     // Show overview panel by default
     switchOMView('dashboard');
     await loadOMDashboard(orgId);
+
+    // Pre-carregar variaveis e scripts para que as abas ja tenham dados
+    loadVariables(orgId);
+    loadOrgScripts(orgId);
+    loadBundles(orgId);
 }
 window.selectOrganization = selectOrganization;
 
@@ -1332,14 +1337,70 @@ async function generateBundle() {
     Toast.info('Gerando bundle...');
 
     const res = await API.post('generate-bundle', { organization_id: currentOrgId, scripts: selected });
-    if (res.success && res.data.download_url) {
+    if (res.success) {
         Toast.success('Bundle gerado com sucesso');
-        window.location.href = res.data.download_url;
+        loadBundles(currentOrgId);
     } else {
         Toast.error(res.error || 'Erro ao gerar bundle');
     }
 }
 window.generateBundle = generateBundle;
+
+// ============ BUNDLES GALLERY ============
+
+async function loadBundles(orgId) {
+    if (!orgId) return;
+    const el = document.getElementById('bundles-tbody');
+    if (!el) return;
+
+    el.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Carregando bundles...</td></tr>';
+
+    const res = await API.get('bundles', { org_id: orgId });
+    if (!res.success) { el.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-rose-400">Erro ao carregar</td></tr>'; return; }
+
+    if (!res.data || res.data.length === 0) {
+        el.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Nenhum bundle gerado ainda</td></tr>';
+        return;
+    }
+
+    el.innerHTML = res.data.map(b => {
+        const date = new Date(b.generated_at);
+        const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+            ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const sizeKb = b.content_size ? Math.round(b.content_size / 1024) : '-';
+        const activeBadge = b.is_active
+            ? '<span class="badge badge-success">Ativo</span>'
+            : '<span class="badge badge-secondary">Inativo</span>';
+        return `
+            <tr class="border-b border-slate-700/50">
+                <td class="px-4 py-3 text-sm text-slate-300">${dateStr}</td>
+                <td class="px-4 py-3 text-sm text-slate-400">${b.scripts_count || 0}</td>
+                <td class="px-4 py-3 text-sm text-slate-400">${sizeKb} KB</td>
+                <td class="px-4 py-3">${activeBadge}</td>
+                <td class="px-4 py-3 text-right">
+                    <button onclick="downloadBundle(${b.id})" class="text-blue-400 hover:text-blue-300 text-sm mr-2">Download</button>
+                    <button onclick="toggleBundleActive(${b.id})" class="text-amber-400 hover:text-amber-300 text-sm">${b.is_active ? 'Desativar' : 'Ativar'}</button>
+                </td>
+            </tr>`;
+    }).join('');
+}
+window.loadBundles = loadBundles;
+
+function downloadBundle(bundleId) {
+    window.location.href = `/api/?action=bundle-by-id&id=${bundleId}`;
+}
+window.downloadBundle = downloadBundle;
+
+async function toggleBundleActive(bundleId) {
+    const res = await API.post('bundle-toggle', { bundle_id: bundleId });
+    if (res.success) {
+        Toast.success(res.message || 'Status alterado');
+        if (currentOrgId) loadBundles(currentOrgId);
+    } else {
+        Toast.error(res.error || 'Erro');
+    }
+}
+window.toggleBundleActive = toggleBundleActive;
 
 // ============ USERS ============
 
