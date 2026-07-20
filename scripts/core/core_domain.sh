@@ -48,10 +48,12 @@ echo ">>> Metodo de autenticacao: $AUTH_METHOD"
 # ============================================================
 # Decodificar senha base64 se fornecida
 # ============================================================
-if [ -n "$ADMIN_PASSWORD_B64" ] && [ "$ADMIN_PASSWORD_B64" != "" ] && [ "$ADMIN_PASSWORD_B64" != "__ADMIN_PASSWORD_B64__" ]; then
+if [ -n "$ADMIN_PASSWORD_B64" ] && [ "$ADMIN_PASSWORD_B64" != "" ]; then
     ADMIN_PASSWORD=$(echo "$ADMIN_PASSWORD_B64" | base64 -d 2>/dev/null)
     if [ -n "$ADMIN_PASSWORD" ]; then
-        echo ">>> Senha do AD decodificada de base64"
+        echo ">>> Senha do AD decodificada de base64 (${#ADMIN_PASSWORD} caracteres)"
+    else
+        echo ">>> AVISO: Falha ao decodificar ADMIN_PASSWORD_B64 — senha nao decodificada"
     fi
 fi
 

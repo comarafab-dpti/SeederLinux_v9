@@ -437,7 +437,7 @@ VALUES (
     'Instalacao de Pacotes',
     'core_packages.sh',
     'Instala TODOS os pacotes necessarios (sistema, OCS, CUPS, VNC, Conky, Java, Apps)',
-    '#!/bin/bash
+'#!/bin/bash
 # ============================================================================
 # Core Script: core_packages.sh
 # SeederLinux Lite - Instalar pacotes essenciais
@@ -459,9 +459,13 @@ echo "============================================================"
 # ============================================================
 DESKTOP_ENV="{{DESKTOP_ENV}}"
 INSTALL_DESKTOP="{{INSTALL_DESKTOP}}"
+SSH_PORT="{{SSH_PORT}}"
+SSH_GROUPS="{{SSH_GROUPS}}"
 
 echo ">>> Ambiente grafico solicitado (opcional): $DESKTOP_ENV"
 echo ">>> Instalar ambiente grafico: $INSTALL_DESKTOP"
+echo ">>> Porta SSH: ${SSH_PORT:-22}"
+echo ">>> Grupos SSH: ${SSH_GROUPS:-nenhum}"
 
 # ============================================================
 # Detectar ambiente grafico ja instalado
@@ -613,6 +617,15 @@ else
 fi
 
 # ============================================================
+# Garantir repositorio universe (necessario para ocsinventory-agent no Mint/Ubuntu)
+# ============================================================
+echo ">>> Garantindo repositorio universe..."
+if command -v add-apt-repository &>/dev/null; then
+    add-apt-repository -y universe 2>/dev/null || true
+fi
+apt-get update -qq
+
+# ============================================================
 # Pacotes complementares
 # ============================================================
 echo ">>> Instalando pacotes complementares..."
@@ -624,7 +637,6 @@ EXTRA_PACKAGES=(
     conky
     conky-all
     jq
-    ocsinventory-agent
     dmidecode
     openjdk-8-jre
     gimp
@@ -650,6 +662,19 @@ EXTRA_PACKAGES=(
 
 apt-get install -y "${EXTRA_PACKAGES[@]}" || true
 
+# ============================================================
+# OCS Inventory Agent (pacote critico para inventario)
+# Instalado separadamente para garantir verificacao e diagnostico
+# ============================================================
+echo ">>> Instalando OCS Inventory Agent..."
+if ! apt-get install -y ocsinventory-agent 2>/dev/null; then
+    echo ">>> AVISO: Falha ao instalar ocsinventory-agent."
+    echo ">>> Verifique se o repositorio universe esta habilitado."
+    echo ">>> Comando manual: sudo add-apt-repository universe && sudo apt-get update && sudo apt-get install -y ocsinventory-agent"
+else
+    echo ">>> OCS Inventory Agent instalado com sucesso"
+fi
+
 # Firefox ESR com fallback para firefox
 apt-get install -y firefox-esr firefox-esr-l10n-pt-br 2>/dev/null || \
     apt-get install -y firefox firefox-l10n-pt-br 2>/dev/null || true
@@ -664,6 +689,50 @@ apt-get install -y firmware-linux-nonfree 2>/dev/null || true
 echo ">>> Limpando cache do APT..."
 apt-get clean
 apt-get autoremove -y
+
+# ============================================================
+# Configurar porta SSH e AllowGroups
+# ============================================================
+if [ -n "$SSH_PORT" ] && [ "$SSH_PORT" != "" ] && [ "$SSH_PORT" != "22" ]; then
+    echo ">>> Configurando porta SSH: $SSH_PORT"
+    if [ -f /etc/ssh/sshd_config ]; then
+        cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak.$(date +%Y%m%d%H%M%S) 2>/dev/null || true
+        sed -i "s/^#*Port .*/Port $SSH_PORT/" /etc/ssh/sshd_config
+        echo ">>> Porta SSH alterada para $SSH_PORT"
+    fi
+fi
+
+if [ -n "$SSH_GROUPS" ] && [ "$SSH_GROUPS" != "" ]; then
+    echo ">>> Configurando AllowGroups: $SSH_GROUPS"
+    if [ -f /etc/ssh/sshd_config ]; then
+        # Processar grupos (uma por linha ou separados por virgula)
+        IFS=
+\n,'' read -ra GRP_ARRAY <<< "$SSH_GROUPS"
+        GRP_LIST=""
+        for GRP in "${GRP_ARRAY[@]}"; do
+            GRP=$(echo "$GRP" | xargs)
+            if [ -n "$GRP" ] && [ "$GRP" != "" ]; then
+                if [ -z "$GRP_LIST" ]; then
+                    GRP_LIST="$GRP"
+                else
+                    GRP_LIST="$GRP_LIST $GRP"
+                fi
+            fi
+        done
+        if [ -n "$GRP_LIST" ]; then
+            sed -i "s/^#*AllowGroups .*/AllowGroups $GRP_LIST/" /etc/ssh/sshd_config
+            if ! grep -q "^AllowGroups " /etc/ssh/sshd_config; then
+                echo "AllowGroups $GRP_LIST" >> /etc/ssh/sshd_config
+            fi
+            echo ">>> AllowGroups configurado: $GRP_LIST"
+        fi
+    fi
+fi
+
+# Reiniciar SSH se a porta ou grupos foram alterados
+if [ -f /etc/ssh/sshd_config ]; then
+    systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || true
+fi
 
 echo ">>> [03] Pacotes essenciais instalados!"
 echo "============================================================"
@@ -689,7 +758,7 @@ VALUES (
     'Ingresso em Dominio AD',
     'core_domain.sh',
     'Ingressa a estacao no Active Directory (SSSD/Winbind com fallback)',
-    '#!/bin/bash
+'#!/bin/bash
 # ============================================================================
 # Core Script: core_domain.sh
 # SeederLinux Lite - Ingresso no AD (SSSD/Winbind com fallback)
@@ -739,10 +808,12 @@ echo ">>> Metodo de autenticacao: $AUTH_METHOD"
 # ============================================================
 # Decodificar senha base64 se fornecida
 # ============================================================
-if [ -n "$ADMIN_PASSWORD_B64" ] && [ "$ADMIN_PASSWORD_B64" != "" ] && [ "$ADMIN_PASSWORD_B64" != "__ADMIN_PASSWORD_B64__" ]; then
+if [ -n "$ADMIN_PASSWORD_B64" ] && [ "$ADMIN_PASSWORD_B64" != "" ]; then
     ADMIN_PASSWORD=$(echo "$ADMIN_PASSWORD_B64" | base64 -d 2>/dev/null)
     if [ -n "$ADMIN_PASSWORD" ]; then
-        echo ">>> Senha do AD decodificada de base64"
+        echo ">>> Senha do AD decodificada de base64 (${#ADMIN_PASSWORD} caracteres)"
+    else
+        echo ">>> AVISO: Falha ao decodificar ADMIN_PASSWORD_B64 — senha nao decodificada"
     fi
 fi
 
@@ -2418,7 +2489,7 @@ VALUES (
     'Configuracao Persistente',
     'core_config.sh',
     'Aplica configuracoes persistentes do sistema',
-    '#!/bin/bash
+'#!/bin/bash
 # ============================================================================
 # Core Script: core_config.sh
 # SeederLinux Lite - Arquivo de Configuracao Persistente
@@ -2509,8 +2580,12 @@ THEME="{{THEME}}"
 DESKTOP_ENV="{{DESKTOP_ENV}}"
 DISPLAY_MANAGER="{{DISPLAY_MANAGER}}"
 
-# Aplicacoes e Funcionalidades
-INSTALL_APPS="{{INSTALL_APPS}}"
+# Aplicacoes e Funcionalidades (toggles individuais)
+INSTALL_ONLYOFFICE="{{INSTALL_ONLYOFFICE}}"
+INSTALL_CHROME="{{INSTALL_CHROME}}"
+INSTALL_CHROMIUM="{{INSTALL_CHROMIUM}}"
+INSTALL_JAVA8="{{INSTALL_JAVA8}}"
+INSTALL_FIREFOX52="{{INSTALL_FIREFOX52}}"
 INSTALL_LEGADOS="{{INSTALL_LEGADOS}}"
 VNC_ENABLED="{{VNC_ENABLED}}"
 INVENTORY_ENABLED="{{INVENTORY_ENABLED}}"
@@ -2528,7 +2603,8 @@ PRINTERS="{{PRINTERS}}"
 
 # Acesso Remoto
 REMOTE_METHOD="{{REMOTE_METHOD}}"
-REMOTE_SERVER="{{REMOTE_SERVER}}"
+SSH_PORT="{{SSH_PORT}}"
+SSH_GROUPS="{{SSH_GROUPS}}"
 
 # Certificados
 CERTIFICATE_BUNDLE="{{CERTIFICATE_BUNDLE}}"

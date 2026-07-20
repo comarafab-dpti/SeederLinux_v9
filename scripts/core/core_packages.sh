@@ -178,6 +178,15 @@ else
 fi
 
 # ============================================================
+# Garantir repositorio universe (necessario para ocsinventory-agent no Mint/Ubuntu)
+# ============================================================
+echo ">>> Garantindo repositorio universe..."
+if command -v add-apt-repository &>/dev/null; then
+    add-apt-repository -y universe 2>/dev/null || true
+fi
+apt-get update -qq
+
+# ============================================================
 # Pacotes complementares
 # ============================================================
 echo ">>> Instalando pacotes complementares..."
@@ -189,7 +198,6 @@ EXTRA_PACKAGES=(
     conky
     conky-all
     jq
-    ocsinventory-agent
     dmidecode
     openjdk-8-jre
     gimp
@@ -214,6 +222,19 @@ EXTRA_PACKAGES=(
 )
 
 apt-get install -y "${EXTRA_PACKAGES[@]}" || true
+
+# ============================================================
+# OCS Inventory Agent (pacote critico para inventario)
+# Instalado separadamente para garantir verificacao e diagnostico
+# ============================================================
+echo ">>> Instalando OCS Inventory Agent..."
+if ! apt-get install -y ocsinventory-agent 2>/dev/null; then
+    echo ">>> AVISO: Falha ao instalar ocsinventory-agent."
+    echo ">>> Verifique se o repositorio universe esta habilitado."
+    echo ">>> Comando manual: sudo add-apt-repository universe && sudo apt-get update && sudo apt-get install -y ocsinventory-agent"
+else
+    echo ">>> OCS Inventory Agent instalado com sucesso"
+fi
 
 # Firefox ESR com fallback para firefox
 apt-get install -y firefox-esr firefox-esr-l10n-pt-br 2>/dev/null || \
